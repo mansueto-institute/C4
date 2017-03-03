@@ -1,0 +1,10 @@
+createdb gdb -O jsaxon
+psql gdb -c 'CREATE EXTENSION postgis;' 
+psql gdb -c 'CREATE EXTENSION postgis_topology;' 
+
+psql gdb -c 'GRANT USAGE ON SCHEMA topology TO public;'
+psql gdb -c 'GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA topology TO public;'
+psql gdb -c 'GRANT SELECT ON ALL TABLES IN SCHEMA topology TO public;'
+
+psql gdb -c 'GRANT SELECT, DELETE, INSERT ON ALL TABLES IN SCHEMA topology TO jsaxon;'
+
