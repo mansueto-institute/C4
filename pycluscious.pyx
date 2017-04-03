@@ -1,9 +1,10 @@
-# distutils: language = c++
-# distutils: sources = Cluscious.cpp
+# distutils: language=c++
+# distutils: sources=Cluscious.cpp
 
 from libcpp.string cimport string
 from libcpp.vector cimport vector
 from libcpp.map cimport map
+from libcpp.pair cimport pair
 # from libcpp.unordered_map cimport unordered_map
 from libcpp.unordered_set cimport unordered_set
 
@@ -15,7 +16,8 @@ cdef extern from "Cluscious.h" namespace "Cluscious" :
     cdef cppclass Cell:
         Cell() except + 
         Cell(Cell) except + 
-        Cell(int, int, double, double, double, map[int, double], string) except +
+        Cell(int, int, double, double, double, map[int, double], int) except +
+        void add_edge(int, int, int)
         int id, pop
         double x, y, area
         map[int, double] wm
@@ -26,8 +28,6 @@ cdef extern from "Cluscious.h" namespace "Cluscious" :
         Region(int, double, double) except +
         double xctr, yctr
 
-        # double Region(Objective Method, obj) 
-
     cdef cppclass Universe:
         Universe() except + 
         Universe(int) except + 
@@ -36,13 +36,19 @@ cdef extern from "Cluscious.h" namespace "Cluscious" :
         vector[Cell*] cells
 
         void add_cell(Cell)
+        void add_edge(int, int, int, int)
+        void add_node(int, float, float)
+        void add_node_edge(int, int)
         int  get_ncells()
         map[int, int] cell_region_map()
         vector[int] border_cells(int)
         vector[int] clipped_cells()
 
+        vector[pair[float, float]] get_ring(int) 
+
         void rand_districts(int) except +
-        void contiguity_to_neighbors()
+        void adjacency_to_pointers()
+        void node_ids_to_pointers()
         void connect_graph()
         void trim_graph()
         void grow_kmeans(int popgrow)
@@ -55,8 +61,11 @@ cdef extern from "Cluscious.h" namespace "Cluscious" :
 
 cdef class cell:
     cdef Cell c_cell # hold a C++ instance which we're wrapping
-    def __cinit__(self, int i, int p, double x, double y, double a, map[int, double] wm, str wkt = "MULTIPOLYGON()"):
-        self.c_cell = Cell(i, p, x, y, a, wm, wkt.encode('utf-8'))
+    def __cinit__(self, int i, int p, double x, double y, double a, map[int, double] wm, int edge):
+        self.c_cell = Cell(i, p, x, y, a, wm, edge)
+
+    def add_edge(self, int eid, int nodea, int nodeb):
+        self.c_cell.add_edge(eid, nodea, nodeb)
 
     def __str__(self):
         return "<pycl::cell id={} (x,y)=({:.02f},{:.02f})>".format(self.c_cell.id, self.c_cell.x, self.c_cell.y)
@@ -115,6 +124,15 @@ cdef class universe:
     def add_cell(self, cell c):
         self.c_univ.add_cell(c.c_cell)
 
+    def add_edge(self, int cell_id, int eid, int nodea, int nodeb):
+        self.c_univ.add_edge(cell_id, eid, nodea, nodeb)
+
+    def add_node(self, int nid, float x, float y):
+        self.c_univ.add_node(nid, x, y)
+
+    def add_node_edge(self, int nid, int eid):
+        self.c_univ.add_node_edge(nid, eid)
+
     def get_ncells(self):
         return self.c_univ.get_ncells()
 
@@ -127,8 +145,11 @@ cdef class universe:
     def trim_graph(self):
         self.c_univ.trim_graph()
 
-    def contiguity_to_neighbors(self):
-        return self.c_univ.contiguity_to_neighbors()
+    def adjacency_to_pointers(self):
+        return self.c_univ.adjacency_to_pointers()
+
+    def node_ids_to_pointers(self):
+        return self.c_univ.node_ids_to_pointers()
 
     def get_cell(self, int c):
 
@@ -137,6 +158,9 @@ cdef class universe:
             return cell(ci.id, ci.pop, ci.x, ci.y, ci.area, ci.wm)
 
         return None
+
+    def get_ring(self, rid):
+        return self.c_univ.get_ring(rid)
 
     def cell_region_map(self):
         return self.c_univ.cell_region_map()

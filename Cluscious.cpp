@@ -1,22 +1,29 @@
-#include "Cluscious.h"
+#include "Cluscious.h" 
+
+// #define NDEBUG 
+#include <assert.h>
+
 
 namespace Cluscious {
+
 
   Cell::Cell()
     : region(-1), id(0), pop(0), x(0), y(0), area(0) {}
   Cell::Cell(const Cell &c) 
-    : region(-1), id(c.id), pop(c.pop), x(c.x), y(c.y), area(c.area), wm(c.wm),
-      pt(c.pt), poly(c.poly){}
+    : region(-1), id(c.id), pop(c.pop), x(c.x), y(c.y), area(c.area), wm(c.wm), is_univ_edge(c.is_univ_edge),
+      pt(c.pt) {} // , poly(c.poly){}
 
   Cell::Cell(int i, int p, double x, double y,
-             double a, weight_map wm, std::string mp_wkt = "MULTIPOLYGON(())")
-    : region(-1), id(i), pop(p), x(x), y(y), area(a), wm(wm), pt(x, y) {
+             double a, weight_map wm, bool ue) // , std::string mp_wkt = "MULTIPOLYGON(())")
+    : region(-1), id(i), pop(p), x(x), y(y), area(a), wm(wm), is_univ_edge(ue), pt(x, y) {
 
-    boost::geometry::read_wkt(mp_wkt, poly);  
+    if (!p) pop = 1; // N.B. that we're setting the minimum population per cell to 1!!
+
+    // boost::geometry::read_wkt(mp_wkt, poly);  
   }
 
 
-  void Cell::contiguity_to_neighbors(std::vector<Cell*>& univ_cells) {
+  void Cell::adjacency_to_pointers(std::vector<Cell*>& univ_cells) {
 
     weight_map::iterator wit;
     weight_map::iterator wmend = wm.end();
@@ -32,6 +39,144 @@ namespace Cluscious {
 
     }
   }
+
+  void Cell::add_edge(int edge_id, int nodea, int nodeb) {
+
+    edges.push_back(Edge(edge_id, nodea, nodeb));
+
+  }
+
+
+  void Cell::node_ids_to_pointers(std::vector<Node*>& univ_nodes) {
+
+    for (auto& n : univ_nodes) {
+      for (auto& e : edges) {
+        if (e.na_id == n->id) e.set_na(n);
+        if (e.nb_id == n->id) e.set_nb(n);
+      }
+    }
+
+  }
+
+  int Cell::get_edge_idx(int id) {
+    
+    int eidx = -1;
+    for (auto& e : edges) { eidx++; 
+      if (e.id == id) return eidx;
+    }
+
+    return eidx; // shit got fucked.
+
+  }
+
+  int Cell::get_ext_edge_idx() {
+
+    int eidx = -1;
+
+    // If this cell is not on the border of the universe,
+    // we're looking for an edge shared with a foreign neighbor.
+    if (!is_univ_edge) {
+
+      // cout << "INTERNAL EDGE, cell " << id << " (x,y)=(" << x << "," << y << ")" << endl;
+      for (auto e : edges) { eidx++;                 // For each edge,
+        // cout << e.id << " (" << eidx << "), (x,y)=(" << e.nb->x << "," << e.nb->y << ")" << endl;
+        for (auto nei : nm) {                        // loop over the 
+          if (nei.first->region == region) continue; // foreign neighbors'
+          for (auto nei_e : nei.first->edges) {      // edges;
+            if (nei_e.id == e.id) {                  // if the edge is in both,
+              // cout << "Outstanding!-- I found this great edge (" << e.id << ") that's in both " 
+              //      << id << " (r=" << region << ") and also " 
+              //      << nei.first->id << " (" << nei.first->region << ")!" << endl;
+              return eidx;                         // return the edge index. 
+            }
+          }
+        }
+      }
+
+    } else { // otherwise, looking for an edge shared with no one.
+
+      // cout << "UNIV EDGE" << endl;
+      for (auto e : edges) { eidx++;                 // For each edge,
+        bool found_edge = false;
+        // cout << e.id << " (" << eidx << ")" << endl;
+        for (auto nei : nm) {                        // loop over the neighbors'
+          for (auto nei_e : nei.first->edges) {      // edges;
+            // cout << "neighbor " << nei.first->id << " edge " << nei_e.id << endl;
+            if (nei_e.id == e.id) {                  // if it's shared, 
+              // cout << "Found a match for edge " << e.id << " along cell " 
+              //      << id << " (r=" << region << ") and also " 
+              //      << nei.first->id << " (" << nei.first->region << ")!" << endl;
+              found_edge = true;                     // it's not what we're looking for.
+              break;
+            }
+          }
+          if (found_edge) break;
+        }
+        if (found_edge) continue;
+
+        // cout << "Wonderful -- I found an edge that isn't shared!" << endl;
+        return eidx;
+      }
+    }
+
+    return -1; // otherwise -1, to signify failure.
+
+  }
+
+  bool Cell::has_edge(int edge_id) {
+
+    for (auto e : edges) {
+      if (edge_id == e.id) return true;
+    }
+
+    return false;
+  }
+
+  Edge* Cell::get_edge(int edge_id) {
+
+    for (auto e = edges.begin(); e != edges.end(); e++) {
+      if (edge_id == e->id) return &(*e);
+    }
+
+    return 0;
+  }
+
+  bool Cell::next_in_region(Node* node, int start_edge_id,
+                            Cell*& next_cell, Edge*& next_edge,
+                            bool CW = true) {
+
+    int edge_id;
+    node->set_edge(start_edge_id);
+    for (int ni = 0; ni < node->size(); ni++) {
+
+      if (CW) edge_id = node->next();
+      else    edge_id = node->prev();
+
+      int border = has_edge(edge_id);
+      if (border) {
+        next_cell = this;
+        next_edge = get_edge(edge_id);
+      }
+
+      for (auto nei : nm) {
+        if (nei.first->region == region && 
+            nei.first->has_edge(edge_id)) {
+
+          next_cell = nei.first;
+          next_edge = nei.first->get_edge(edge_id);
+          border++;
+        }
+      }
+
+      if (border == 1) return true;
+    }
+
+    cout << "Never found the next border -- made a full loop!!" << endl;
+    exit(1);
+    return false;
+
+  }
+
 
   // Overloading...
   bool Cell::neighbors_connected() {
@@ -57,7 +202,8 @@ namespace Cluscious {
       for (auto nn : n.first->nm) 
         if (nn.first->region == region &&
             // best this way?  removing this would allow corners...
-            nn.first->nm.find(this) != nn.first->nm.end()) 
+            nn.first->nm.find(this) != nn.first->nm.end() &&
+            nn.second > 0) // ROOK
           lone_star.insert(nn.first);
 
       // Then get a vector of all the existing
@@ -103,7 +249,7 @@ namespace Cluscious {
     // Add the neighbors of the current sets to each list.
     for (auto g : graphs) {
       to_add.push_back(std::unordered_set<Cell*>());
-      for (auto c : g) for (auto n : c->nm) {
+      for (auto c : g) for (auto n : c->nm) if (n.second > 0) { // ROOK
         if (n.first->region == region &&   // in the region
             g.find(n.first) == g.end() &&  // not yet in graph, and 
             n.first != this) {             // not the cell in question.
@@ -170,7 +316,7 @@ namespace Cluscious {
 
         next.clear();
         for (auto c : to_add[gidx]) {
-          for (auto n : c->nm) {
+          for (auto n : c->nm) if (n.second > 0) { // ROOK
             // cout << "nid=" << n.first->id << "  r" << n.first->region << " v. " << region << " :: ";
             if (n.first->region == region && c != this &&
                 graphs[gidx].find(n.first) == graphs[gidx].end()) {
@@ -215,7 +361,7 @@ namespace Cluscious {
 
     wm.erase(m->id);
     nm.erase(m);
-    linked.push_back(m->id);
+    enclaves_and_islands.push_back(m->id);
 
   }
 
@@ -245,6 +391,7 @@ namespace Cluscious {
     // require check, because otherwise cells can
     // get assigned after all ext. neighbors are,
     // and then never re-visited.
+    if (c->is_univ_edge) int_borders.insert(c);
     for (auto n : c->nm) if (n.first->region != id) {
       int_borders.insert(c); break;
     }
@@ -259,7 +406,7 @@ namespace Cluscious {
       // We try to add it to the list of border cells
       // (it may already be there), but at any rate
       // add its newly-exposed border to sumw_border.
-      if (n.first->region != id) {
+      if (n.first->region != id && n.second > 0) { // ROOK
         ext_borders.insert(n.first);
         sumw_border += n.second;
 
@@ -282,7 +429,7 @@ namespace Cluscious {
             break;
           }
         }
-        if (!indep_connections) {
+        if (!indep_connections && !n.first->is_univ_edge) {
           // cout << "  It has no independent connections to the outside, so erase it." << endl;
           int_borders.erase(n.first);
         }
@@ -403,6 +550,121 @@ namespace Cluscious {
 
   }
 
+  std::vector<std::pair<float, float> > Region::get_ring() {
+    
+
+    std::vector<Node*> nr;
+    get_node_ring(nr, 0, -1);
+
+    std::vector<std::pair<float, float> > point_ring;
+
+    for (auto n : nr) {
+      point_ring.push_back(std::make_pair(n->x, n->y));
+    }
+    point_ring.push_back(point_ring.front()); // close the loop.
+
+    return point_ring;
+
+  }
+
+  // Not directly returning the float pairs makes it easier
+  // to add in the queen/corner loops.
+  void Region::get_node_ring(std::vector<Node*> &ring,
+                             Cell* curr_cell, int this_edge_idx) {
+
+    bool recursed = curr_cell; // safety -- one layer deep.
+
+    // If a starting cell/edge is not provided, find a random one.
+    // if we happen to choose a cell with only a corner connection
+    // to the outside, the external ege will fail; hence we loop.
+    for (auto ib = int_borders.begin();
+         ib != int_borders.end() && this_edge_idx < 0; ++ib) {
+      curr_cell = *ib;
+      this_edge_idx = curr_cell->get_ext_edge_idx();
+    }
+    assert(this_edge_idx >= 0); // we'd better eventually find one!
+
+    Edge* this_edge = &curr_cell->edges[this_edge_idx];
+    Node* start_node = 0;
+    Node* node = this_edge->nb;
+
+
+    // This will store any corner cases we miss.
+    std::map<Node*, std::pair<Cell*, int> > diagonals;
+
+    // Looping around nodes of of the polygon.
+    int loop_safe = 0; // because I lack confidence, for the time being....
+    while ((node != start_node || ring.size() <= 1) && loop_safe < 1000) {
+
+      loop_safe++; 
+
+      // Loop around CW, until the next edge on the border.
+      Cell* next_cell = 0; Edge* next_edge = 0;
+      curr_cell->next_in_region(node, this_edge->id, next_cell, next_edge);
+
+      // If it's a new cell, we mark the node in our ring.
+      if (next_cell != curr_cell) {
+        ring.push_back(node);
+
+        // If it's the first such cell, it's also our endpoint!
+        if (!start_node) start_node = node; 
+      }
+
+      // If there's the possibility of catty-corner cells, look in reverse too.
+      if (node->size() > 3) {
+
+        Cell* corner_cell; Edge* corner_edge;
+        curr_cell->next_in_region(node, this_edge->id, corner_cell, corner_edge, false); // (false -> CCW)
+
+        // If the two directions give different edges, we've got a corner.
+        if (corner_edge != next_edge) {
+
+          // If it's the first time we've seen this cell, 
+          if (diagonals.find(node) == diagonals.end()) {
+            // add it to the list of potential diagonals.
+            diagonals[node] = std::make_pair(corner_cell, corner_cell->get_edge_idx(corner_edge->id));
+          } else {
+            diagonals.erase(node); // otherwise, remove it from that list.
+          }
+        }
+      }
+
+      node = next_edge->nb;  // that will be our next node
+      this_edge = next_edge; // edge, and
+      curr_cell = next_cell; // cell...
+
+    }
+
+    if (recursed) return;
+      
+    while (diagonals.size()) {
+      // cout << "Diagonal nodes :: " << diagonals.size() << endl;
+
+      auto nd = diagonals.begin();
+      // cout << "  > " << nd->first->id << " (" << nd->second.first << ", " << nd->second.second << ")" << endl;
+
+      std::vector<Node*> insert_ring;
+      get_node_ring(insert_ring, nd->second.first, nd->second.second);
+
+      std::vector<Node*>::iterator ring_iter = find(ring.begin(), ring.end(), nd->first);
+      ring.insert(ring_iter, insert_ring.begin(), insert_ring.end());
+
+      for (auto ni : insert_ring) {
+        diagonals.erase(ni);
+      }
+
+      diagonals.erase(nd->first);
+    }
+
+    if (loop_safe == 1000) {
+      cerr << "WARNING :: Region " << id << " :: get_ring reached max loop value. "
+           << "Output size is " << ring.size() << "." << endl;
+    }
+
+    assert(nr.size());
+
+  }
+
   float Region::update_miniball(Cell* add = 0, Cell* sub = 0, bool UPDATE = false) {
 
     // Avoid if at all possible
@@ -460,15 +722,43 @@ namespace Cluscious {
 
   }
 
-  void Universe::contiguity_to_neighbors() {
-    for (auto c : cells) c->contiguity_to_neighbors(cells);
+  void Universe::add_edge(int cell_id, int edge_id, int nodea, int nodeb) {
+
+    for (auto c : cells) {
+      if (c->id == cell_id) {
+        c->add_edge(edge_id, nodea, nodeb);
+        return;
+      }
+    }
+
+    cout << "Failed to find cell!" << endl;
   }
 
-  int Universe::get_ncells() {
+  void Universe::add_node(int node_id, float x, float y) {
 
-    return cells.size();
+    nodes.push_back(new Node(node_id, x, y));
 
   }
+
+  void Universe::add_node_edge(int node_id, int edge_id) {
+
+    for (auto n : nodes) {
+      if (n->id == node_id) {
+        n->add_edge(edge_id);
+        return;
+      }
+    }
+  }
+
+  void Universe::adjacency_to_pointers() {
+    for (auto c : cells) c->adjacency_to_pointers(cells);
+  }
+
+  void Universe::node_ids_to_pointers() {
+    for (auto c : cells) c->node_ids_to_pointers(nodes);
+  }
+
+  int Universe::get_ncells() { return cells.size(); }
 
   void Universe::rand_districts(int seed = 0) {
 
@@ -493,12 +783,19 @@ namespace Cluscious {
 
   }
 
+  std::vector<std::pair<float, float> > Universe::get_ring(size_t rid) {
+    
+    if (rid >= regions.size()) return std::vector<std::pair<float, float> >();
+    return regions[rid]->get_ring();
+
+  }
+
   std::map<int, int> Universe::cell_region_map() {
 
     std::map<int, int> crm;
     for (auto c : cells) {
       crm[c->id] = c->region;
-      for (auto l : c->linked) 
+      for (auto l : c->enclaves_and_islands) 
         crm[l] = c->region;
     }
 
@@ -512,7 +809,7 @@ namespace Cluscious {
     std::vector<int> bc;
     for (auto r : regions) {
       if (rid >= 0 && r->id != rid) continue;
-      for (auto const& c : r->ext_borders) {
+      for (auto const& c : r->int_borders) {
         // cout << c->id << " ";
         bc.push_back(c->id);
       }
@@ -626,7 +923,7 @@ namespace Cluscious {
 
     std::vector<int> cc;
     for (auto c : cells) {
-      for (auto l : c->linked) {
+      for (auto l : c->enclaves_and_islands) {
         cc.push_back(l);
       }
     }
@@ -717,7 +1014,7 @@ namespace Cluscious {
             break;
           }
 
-          if (d2 > b_max_d2 &&
+          if (dreg >= 0 && d2 > b_max_d2 &&
               rit->pop > regions[dreg]->pop && 
               b->neighbors_connected()) {
             b_dest_reg = dreg;
@@ -1015,24 +1312,25 @@ namespace Cluscious {
 
           float dbpop = regions[b->region]->pop / target - 1;
 
-          float dp_ij = sign(dbpop - dpop) * fabs(pow((dpop - dbpop)/tol, alpha));
-          if (verbose) cout << " ++ cid" << b->id << endl;
+          float dp_ij = sign(dbpop - dpop) * pow(fabs(dpop - dbpop)/tol, alpha);
+          if (verbose) cout << " ++ cid" << b->id << "  dp_ij=" << dp_ij << endl;
           float dF_ij = (rit->obj(omethod, b, 0, verbose) + regions[b->region]->obj(omethod, 0, b, verbose));
 
           float dO_ij = dp_ij + dF_ij;
 
-          // if (verbose) {
-          //   cout << " possible :: cid" << b->id << ", moving from region: " << std::setprecision(5) << regions[b->region]->id << " to " << rit->id 
-          //        << " :: dp_ij " << dp_ij << "   dF_ij=" << dF_ij 
-          //        << " :: " << dp_ij + dF_ij << " v. " << best_move << endl;
-          // }
+          if (verbose) {
+            cout << " possible :: cid" << b->id << ", moving from region: " << std::setprecision(5) << regions[b->region]->id << " to " << rit->id 
+                 << " :: dp_ij " << dp_ij << "   dF_ij=" << dF_ij 
+                 << " :: " << dp_ij + dF_ij << " v. " << best_move << endl;
+          }
 
-          if (dO_ij > best_move && b->neighbors_connected()) {
+          if (dO_ij > best_move && b->neighbors_connected() &&
+              regions[b->region]->ncells > 1) {
 
             best_move = dO_ij;
             b_opt_c = b;
 
-            if (verbose) {
+            if (verbose && rit->id == 4) {
               cout << " >>> Region: " << std::setprecision(6) << rit->id << ", " << regions[b->region]->id << " :: dp_ij " << dp_ij << "   dF_ij=" << dF_ij << endl;
               cout << "This one's a winner: cid" << b->id << ", " 
                    << "remove from (" << regions[b->region]->id << ", pop " << regions[b->region]->pop << ") " 

@@ -5,7 +5,7 @@
 #include <limits>
 #include <iostream>
 #include <stdlib.h>
-#include <cassert>
+// #include <cassert>
 
 // #include "boost/geometry/geometry.hpp"
 // #include "boost/range/adaptor/reversed.hpp"
@@ -24,12 +24,13 @@
 #include <boost/geometry/algorithms/difference.hpp>
 #include <boost/geometry/geometries/polygon.hpp>
 #include <boost/geometry/geometries/point.hpp>
-// #include <boost/geometry/geometries/point_xy.hpp>
 #include <boost/geometry/geometries/linestring.hpp>
 #include <boost/geometry/multi/geometries/multi_polygon.hpp>
 
 #include <boost/polygon/voronoi.hpp>
 #include <boost/geometry/geometries/adapted/boost_polygon.hpp>
+
+#include "cluscious/topology.h"
 
 // #include "ehrenburg.hpp"
 
@@ -86,15 +87,23 @@ namespace Cluscious {
       Cell();
       Cell(const Cell&);
       Cell(int i, int p, double x, double y,
-           double a, weight_map wm, std::string mp_wkt);
+           double a, weight_map wm, bool is_univ_edge); // , std::string mp_wkt);
 
       float d2(float xi, float yi) { return (x-xi)*(x-xi) + (y-yi)*(y-yi); }
 
-      void contiguity_to_neighbors(std::vector<Cell*>&);
+      void add_edge(int edge_id, int nodea, int nodeb);
+      void adjacency_to_pointers(std::vector<Cell*>&);
+      void node_ids_to_pointers(std::vector<Node*>&);
       void merge(Cell*);
 
+      bool next_in_region(Node* node, int start_edge_id, Cell*& next_cell, Edge*& next_edge, bool CW);
       bool neighbors_connected();
       int neighbor_sets(std::vector<std::unordered_set<Cell*> >& graphs, bool for_merging);
+
+      int get_ext_edge_idx();
+      int get_edge_idx(int id);
+      bool has_edge(int edge_id);
+      Edge* get_edge(int edge_id);
 
       int region;
       int id, pop;
@@ -103,10 +112,14 @@ namespace Cluscious {
       weight_map wm;
       neighbor_map nm;
 
-      bp_pt    pt;
-      bg_mpoly poly;
+      bool is_univ_edge;
 
-      std::vector<int> linked;
+      bp_pt    pt;
+
+
+      std::vector<int> enclaves_and_islands;
+
+      std::vector<Edge> edges;
 
   };
 
@@ -147,6 +160,9 @@ namespace Cluscious {
       double x_mb, y_mb, r2_mb, eps_mb;
       float update_miniball(Cell* add, Cell* sub, bool UPDATE);
 
+      std::vector<std::pair<float, float> > get_ring();
+      void get_node_ring(std::vector<Node*>& nr, Cell* cell = 0, int i = -1);
+
       bg_mpoly poly;
       bg_mpt   mpt;
 
@@ -166,7 +182,12 @@ namespace Cluscious {
       double target;
 
       void add_cell(Cell);
+      void add_edge(int cell_id, int edge_id, int nodea, int nodeb);
+      void add_node(int node_id, float x, float y);
+      void add_node_edge(int node_id, int edge_id);
       int  get_ncells();
+
+      std::vector<std::pair<float, float> > get_ring(size_t rid);
 
       std::map<int, int> cell_region_map();
       std::vector<int> border_cells(int rid);
@@ -178,10 +199,12 @@ namespace Cluscious {
       int  merge_strands(Cell* c, int max);
 
 
-      void contiguity_to_neighbors();
+      void adjacency_to_pointers();
+      void node_ids_to_pointers();
 
       std::vector<Cell*>   cells;
       std::vector<Region*> regions;
+      std::vector<Node*>   nodes;
 
       void rand_districts(int s);
 
@@ -192,6 +215,7 @@ namespace Cluscious {
 
 
   };
+
 
 }
 
