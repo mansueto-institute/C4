@@ -11,7 +11,8 @@ EXTENSION = distutils.extension.Extension(
     name = 'pycluscious', language = 'c++',
     sources = ['pycluscious.pyx'],
     extra_compile_args = ['-Wno-unused-function', 
-                          '-std=c++11', '-Wall'] + ouff_mac,
+                          '-g', '-std=c++11', '-Wall'] + ouff_mac,
+    undef_macros       = ["NDEBUG"],
     extra_link_args    = ouff_mac,
     )
 

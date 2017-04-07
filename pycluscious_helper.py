@@ -25,6 +25,7 @@ con = psycopg2.connect(database = "census", user = user, password = passwd,
                        host = "saxon.harris.uchicago.edu", port = 5432)
 
 shapefile = "shapes/{}.shp"
+stateinfo = "shapes/{}_info.csv"
 edge_file = "shapes/{}_edges.csv"
 node_file = "shapes/{}_nodes.csv"
 
@@ -33,24 +34,51 @@ def ens_dir(f, quiet = False):
     os.makedirs(f)
     print("Remade file", f)
 
+def ens_data(usps): 
+
+  ens_dir("shapes/")
+  cache_stateinfo(usps)
+  cache_shapefile(usps)
+  cache_edge_file(usps)
+  cache_node_file(usps)
+
 
 import pycluscious as pycl
-methods = [["reock"     , pycl.ObjectiveMethod.REOCK], 
-           ["dist_a"    , pycl.ObjectiveMethod.DISTANCE_A],
-           ["dist_p"    , pycl.ObjectiveMethod.DISTANCE_P],
-           ["inertia_a" , pycl.ObjectiveMethod.INERTIA_A],
-           ["inertia_p" , pycl.ObjectiveMethod.INERTIA_P],
-           ["polsby"    , pycl.ObjectiveMethod.POLSBY],
-           ["hull_a"    , pycl.ObjectiveMethod.HULL_A]]
+pycl_methods = {"reock"     : pycl.ObjectiveMethod.REOCK, 
+                "dist_a"    : pycl.ObjectiveMethod.DISTANCE_A,
+                "dist_p"    : pycl.ObjectiveMethod.DISTANCE_P,
+                "inertia_a" : pycl.ObjectiveMethod.INERTIA_A,
+                "inertia_p" : pycl.ObjectiveMethod.INERTIA_P,
+                "polsby"    : pycl.ObjectiveMethod.POLSBY,
+                "hull_a"    : pycl.ObjectiveMethod.HULL_A,
+                "path_frac" : pycl.ObjectiveMethod.PATH_FRAC}
+
+us_states = ["al", "ak", "az", "ar", "ca", "co", "ct", "de", "dc",
+             "fl", "ga", "hi", "id", "il", "in", "ia", "ks", "ky",
+             "la", "me", "md", "ma", "mi", "mn", "ms", "mo", "mt",
+             "ne", "nv", "nh", "nj", "nm", "ny", "nc", "nd", "oh",
+             "ok", "or", "pa", "ri", "sc", "sd", "tn", "tx", "ut",
+             "vt", "va", "wa", "wv", "wi", "wy"]
+
 
 def get_epsg (usps): return get_state_info(usps)["epsg"]
 def get_fips (usps): return get_state_info(usps)["fips"]
 def get_seats(usps): return get_state_info(usps)["seats"]
 
 def get_state_info(usps):
+   
+   return pd.read_csv(stateinfo.format(usps)).ix[0]
 
-   return pd.read_sql("SELECT * FROM states WHERE usps = upper('{}');".format(usps), con).ix[0]
 
+def cache_stateinfo(usps, filename = None):
+
+   if not filename:
+      filename = stateinfo.format(usps.lower())
+
+   if os.path.exists(filename): return
+
+   info = pd.read_sql("SELECT epsg, fips, seats FROM states WHERE usps = upper('{}');".format(usps), con)
+   info.to_csv(filename, index = False)
 
 
 def cache_shapefile(usps, filename = None):
@@ -91,11 +119,11 @@ def cache_node_file(usps, filename = None):
 
 
 
-def plot_map(gdf, filename, crm, bc, col = "qyb", figsize = 10, label = "", ring = None):
+def plot_map(gdf, filename, crm, hlt, pop = False, figsize = 10, label = "", ring = None):
 
     gdf["C"] = pd.Series(crm)
-    gdf["B"] = 0
-    gdf.loc[bc, "B"] = 1
+    gdf["H"] = 0
+    gdf.loc[hlt, "H"] = 1
 
     dis = gdf.dissolve("C", aggfunc='sum')
     dis.reset_index(inplace = True)
@@ -117,18 +145,18 @@ def plot_map(gdf, filename, crm, bc, col = "qyb", figsize = 10, label = "", ring
     if len(set(labels)) == len(labels):
       dis["qyb"].cat.rename_categories(labels, inplace = True)
 
-    if col == "qyb": 
+    if pop: 
       alpha, fc = 0.3, "red"
       ax = dis.plot(column = "qyb", alpha = 0.3, categorical = True, cmap = "Greys",
                     legend = True, figsize = (figsize * np.sqrt(xr/yr), figsize * np.sqrt(yr/xr)))
 
     else: 
-      ax = dis.plot("C", alpha = 0.5, categorical = True, cmap = "nipy_spectral", # color = "0.9",
-                    legend = False, figsize = (figsize * np.sqrt(xr/yr), figsize * np.sqrt(yr/xr)))
+      ax = dis.plot("C", alpha = 0.5, categorical = True, cmap = "nipy_spectral", linewidth = 0.2, # color = "0.9",
+                    legend = True, figsize = (figsize * np.sqrt(xr/yr), figsize * np.sqrt(yr/xr)))
 
       alpha, fc = 0.3, "grey"
 
-    gdf[gdf["B"] == 1].plot(facecolor = fc, alpha = alpha, linewidth = 0.05, ax = ax)
+    gdf[gdf["H"] == 1].plot(facecolor = fc, alpha = alpha, linewidth = 0.05, ax = ax)
 
     ax.set_xlim([bounds[0] - 0.1 * xr, bounds[2] + 0.1 * xr])
     ax.set_ylim([bounds[1] - 0.1 * yr, bounds[3] + 0.1 * yr])
@@ -137,14 +165,14 @@ def plot_map(gdf, filename, crm, bc, col = "qyb", figsize = 10, label = "", ring
 
     ax.set_axis_off()
 
-    if not filename: return ax
-
     if ring is not None:
       ring["C"] = ring.index
-      ring.plot("C", categorical = True, cmap = "nipy_spectral",  ax = ax, linewidth = 3)
-      ring.plot(color = "white", ax = ax, linewidth = 1)
+      ring.plot("C", categorical = True, cmap = "nipy_spectral",  ax = ax, linewidth = 0.6)
+      ring.plot(color = "white", ax = ax, linewidth = 0.2)
 
-    ax.figure.savefig(filename + ".pdf", bbox_inches='tight', pad_inches=0.05)
+    if not filename: return ax
+
+    ax.figure.savefig(filename, bbox_inches='tight', pad_inches=0.05)
     plt.close('all')
 
 

@@ -1,3 +1,6 @@
+#include <execinfo.h>
+#include <assert.h>
+
 #include <vector>
 #include <map>
 #include <unordered_set>
@@ -5,7 +8,6 @@
 #include <limits>
 #include <iostream>
 #include <stdlib.h>
-// #include <cassert>
 
 // #include "boost/geometry/geometry.hpp"
 // #include "boost/range/adaptor/reversed.hpp"
@@ -30,12 +32,18 @@
 #include <boost/polygon/voronoi.hpp>
 #include <boost/geometry/geometries/adapted/boost_polygon.hpp>
 
+#include <boost/graph/adjacency_list.hpp>
+#include <boost/graph/astar_search.hpp>
+#include <boost/graph/dijkstra_shortest_paths.hpp>
+#include <boost/graph/random.hpp>
+
+#define DEBUG_ME std::cerr << __FILE__ << "  " << __FUNCTION__ << "::" << __LINE__ << "\t" << __FUNCTION__ << std::endl
+
 #include "cluscious/topology.h"
 
 // #include "ehrenburg.hpp"
 
 
-#define DEBUG_ME cerr << __FILE__ << "::" << __LINE__ << "\t" << __FUNCTION__ << endl
 
 namespace Cluscious {
 
@@ -56,6 +64,10 @@ namespace Cluscious {
   typedef bgmod::ring<bp_pt>            bg_ring;
   typedef bgmod::multi_polygon<bg_poly> bg_mpoly;
 
+  // Types for the Dijkstra graph.
+  typedef boost::property<boost::edge_weight_t, float> edge_weight_prop_t;
+  typedef boost::adjacency_list<boost::listS, boost::vecS, boost::undirectedS, boost::no_property, edge_weight_prop_t> bgraph;
+  typedef bgraph::vertex_descriptor bvertex;
 
 
   // forward declare for typedef, sort
@@ -63,7 +75,7 @@ namespace Cluscious {
   class Region;
 
   typedef std::map<int, double> weight_map;
-  typedef std::map<Cell*, double> neighbor_map;
+  typedef std::vector< std::pair<Cell*, double> > neighbor_map;
 
   // Miniball types for Reock weights.
   typedef std::list<std::vector<double> >::const_iterator PointIterator; 
@@ -75,6 +87,9 @@ namespace Cluscious {
   bool cellp_set_len_compare(std::unordered_set<Cell*> s1, std::unordered_set<Cell*> s2);
 
   auto uo_set_nempty = [](std::unordered_set<Cell*> i) { return !i.empty(); };
+
+  bool maxed_or_empty(unsigned int max, std::vector<std::unordered_set<Cell*> >& graphs, 
+                                        std::vector<std::unordered_set<Cell*> >& to_add);
 
   int sign(double x);
 
@@ -90,20 +105,24 @@ namespace Cluscious {
            double a, weight_map wm, bool is_univ_edge); // , std::string mp_wkt);
 
       float d2(float xi, float yi) { return (x-xi)*(x-xi) + (y-yi)*(y-yi); }
+      float dist(float xi, float yi) { return sqrt(d2(xi, yi)); }
 
       void add_edge(int edge_id, int nodea, int nodeb);
       void adjacency_to_pointers(std::vector<Cell*>&);
       void node_ids_to_pointers(std::vector<Node*>&);
       void merge(Cell*);
 
-      bool next_in_region(Node* node, int start_edge_id, Cell*& next_cell, Edge*& next_edge, bool CW);
+      bool next_edge_in_region(Node* node, int start_edge_id, Cell*& next_cell, Edge*& next_edge, bool CW);
       bool neighbors_connected();
-      int neighbor_sets(std::vector<std::unordered_set<Cell*> >& graphs, bool for_merging);
+      int  neighbor_sets(std::vector<std::unordered_set<Cell*> >& graphs, unsigned int max_merge, bool QUEEN);
+      int  neighbor_strands(std::unordered_set<Cell*>& strand, int dreg, unsigned int max_merge, bool QUEEN);
 
-      int get_ext_edge_idx();
-      int get_edge_idx(int id);
+      int  get_ext_edge_idx();
+      int  get_edge_idx(int id);
       bool has_edge(int edge_id);
       Edge* get_edge(int edge_id);
+
+      std::pair<Node*, Node*> get_cw_node(int reg);
 
       int region;
       int id, pop;
@@ -116,10 +135,12 @@ namespace Cluscious {
 
       bp_pt    pt;
 
+      std::map<int, Cell*> dijkstra_step;
 
       std::vector<int> enclaves_and_islands;
 
       std::vector<Edge> edges;
+      std::set<Node*> nodes;
 
   };
 
@@ -128,11 +149,14 @@ namespace Cluscious {
     public:
 
       Region();
+      Region(int rid);
       Region(int rid, Cell*);
-      Region(int rid, double x, double y);
 
-      void add_cell(Cell*, bool);
-      void remove_cell(Cell*, bool);
+      void add_cell(Cell* c, bool b);
+      void remove_cell(Cell* c, bool b);
+
+      void add_cell_int_ext_neighbors(Cell* c);
+      void remove_cell_int_ext_neighbors(Cell* c);
 
       double obj(ObjectiveMethod omethod, Cell* add, Cell* sub, bool verbose);
 
@@ -142,6 +166,7 @@ namespace Cluscious {
       double obj_reock    (Cell* add, Cell* sub, bool verbose);
       double obj_hull     (Cell* add, Cell* sub, bool verbose);
       double obj_polsby   (Cell* add, Cell* sub, bool verbose);
+      double obj_path_frac(Cell* add, Cell* sub, bool verbose);
 
       int id;
       int pop;
@@ -160,14 +185,18 @@ namespace Cluscious {
       double x_mb, y_mb, r2_mb, eps_mb;
       float update_miniball(Cell* add, Cell* sub, bool UPDATE);
 
-      std::vector<std::pair<float, float> > get_ring();
+      void make_ring();
+      void add_cell_to_ring(Cell* c);
+      std::vector<std::pair<float, float> > get_point_ring();
       void get_node_ring(std::vector<Node*>& nr, Cell* cell = 0, int i = -1);
+      // void sub_cell_to_ring(Cell* c);
 
       bg_mpoly poly;
       bg_mpt   mpt;
 
       double   ch_area;
       bg_poly  ch_poly;
+      std::vector<Node*> node_ring;
 
   };
 
@@ -187,10 +216,11 @@ namespace Cluscious {
       void add_node_edge(int node_id, int edge_id);
       int  get_ncells();
 
-      std::vector<std::pair<float, float> > get_ring(size_t rid);
+      std::vector<std::pair<float, float> > get_point_ring(size_t rid);
+      void add_cell_to_region(size_t rid, int cid);
 
       std::map<int, int> cell_region_map();
-      std::vector<int> border_cells(int rid);
+      std::vector<int> border_cells(bool EXT, int rid);
       std::vector<int> clipped_cells();
 
       void connect_graph();
@@ -199,19 +229,27 @@ namespace Cluscious {
       int  merge_strands(Cell* c, int max);
 
 
+      bgraph dijkstra_graph;
       void adjacency_to_pointers();
       void node_ids_to_pointers();
+      void build_dijkstra_graph();
+
+      std::vector<int> do_dijkstra(int start_id, int end_id);
 
       std::vector<Cell*>   cells;
       std::vector<Region*> regions;
       std::vector<Node*>   nodes;
 
-      void rand_districts(int s);
 
+      void rand_init(int s);
       void grow_kmeans(int popgrow);
+
+      void load_partition(std::map<int, int> reg_map);
       void iterate(int niter, float tol, int r);
 
       void oiterate(ObjectiveMethod omethod, int niter, float tol, float alpha, int r, int verbose);
+
+      void transfer_strand(std::unordered_set<Cell*>& strand, Region* source, Region* dest);
 
 
   };
