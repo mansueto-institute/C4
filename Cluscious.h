@@ -1,7 +1,9 @@
 #include <execinfo.h>
 #include <assert.h>
 
+#include <deque>
 #include <vector>
+#include <iterator>
 #include <map>
 #include <unordered_set>
 #include <algorithm>
@@ -37,7 +39,7 @@
 #include <boost/graph/dijkstra_shortest_paths.hpp>
 #include <boost/graph/random.hpp>
 
-#define DEBUG_ME std::cerr << __FILE__ << "  " << __FUNCTION__ << "::" << __LINE__ << "\t" << __FUNCTION__ << std::endl
+#define DEBUG_ME std::cerr << __FILE__ << "  " << __FUNCTION__ << "::" << __LINE__ << std::endl
 
 #include "cluscious/topology.h"
 
@@ -82,6 +84,8 @@ namespace Cluscious {
   typedef std::vector<double>::const_iterator CoordIterator;
   typedef Miniball::Miniball <Miniball::CoordAccessor<PointIterator, CoordIterator> > MB;
 
+  const double VOR_SCALE = 1e4;
+
   bool pop_compare(Region* r1, Region* r2);
   bool id_compare(Region* r1, Region* r2);
   bool cellp_set_len_compare(std::unordered_set<Cell*> s1, std::unordered_set<Cell*> s2);
@@ -94,6 +98,7 @@ namespace Cluscious {
   int sign(double x);
 
   enum ObjectiveMethod {DISTANCE_A, DISTANCE_P, INERTIA_A, INERTIA_P, HULL_A, POLSBY, REOCK, EHRENBURG, POLSBY_W, PATH_FRAC};
+  enum RadiusType      {EQUAL_AREA, EQUAL_AREA_POP, EQUAL_CIRCUMFERENCE, SCC, LIC, HULL};
 
   class Cell {
 
@@ -102,7 +107,7 @@ namespace Cluscious {
       Cell();
       Cell(const Cell&);
       Cell(int i, int p, double x, double y,
-           double a, weight_map wm, bool is_univ_edge); // , std::string mp_wkt);
+           double a, weight_map wm, bool is_univ_edge, bool is_split); // , std::string mp_wkt);
 
       float d2(float xi, float yi) { return (x-xi)*(x-xi) + (y-yi)*(y-yi); }
       float dist(float xi, float yi) { return sqrt(d2(xi, yi)); }
@@ -110,12 +115,16 @@ namespace Cluscious {
       void add_edge(int edge_id, int nodea, int nodeb);
       void adjacency_to_pointers(std::vector<Cell*>&);
       void node_ids_to_pointers(std::vector<Node*>&);
+      void check_internal_connectedness();
       void merge(Cell*);
 
-      bool next_edge_in_region(Node* node, int start_edge_id, Cell*& next_cell, Edge*& next_edge, bool CW);
-      bool neighbors_connected();
-      int  neighbor_sets(std::vector<std::unordered_set<Cell*> >& graphs, unsigned int max_merge, bool QUEEN);
-      int  neighbor_strands(std::unordered_set<Cell*>& strand, int dreg, unsigned int max_merge, bool QUEEN);
+      bool next_edge_in_region(Node* node, int start_edge_id, Cell*& next_cell, Edge*& next_edge, bool CW, int region_i);
+      bool neighbors_connected(bool QUEEN, bool FAST);
+      int  neighbor_sets(std::vector<std::unordered_set<Cell*> >& graphs, unsigned int max_merge = 0, bool QUEEN = false, bool FAST = false);
+      int  neighbor_strands(std::unordered_set<Cell*>& strand, unsigned int max_merge, bool QUEEN);
+
+      std::unordered_set<int> neighbor_regions(bool QUEEN = false);
+      bool is_neighbor(Cell* c) { for (auto& n : nm) if (n.first == c) return true; return false; }
 
       int  get_ext_edge_idx();
       int  get_edge_idx(int id);
@@ -132,6 +141,8 @@ namespace Cluscious {
       neighbor_map nm;
 
       bool is_univ_edge;
+      bool is_split;
+      bool split_neighbor;
 
       bp_pt    pt;
 
@@ -167,6 +178,10 @@ namespace Cluscious {
       double obj_hull     (Cell* add, Cell* sub, bool verbose);
       double obj_polsby   (Cell* add, Cell* sub, bool verbose);
       double obj_path_frac(Cell* add, Cell* sub, bool verbose);
+      double obj_ehrenburg(Cell* add, Cell* sub, bool verbose);
+
+      float d2(float x, float y, RadiusType rt = RadiusType::EQUAL_AREA);
+      float dist(float x, float y, RadiusType rt = RadiusType::EQUAL_AREA) { return sqrt(d2(x, y, rt)); }
 
       int id;
       int pop;
@@ -176,26 +191,32 @@ namespace Cluscious {
       double xpctr, ypctr;
 
       double sumw_border;
+      
+      bool has_topo;
 
       // The Universe creates the cells.
       std::unordered_set<Cell*> cells;
       std::unordered_set<Cell*> ext_borders;
       std::unordered_set<Cell*> int_borders;
 
-      double x_mb, y_mb, r2_mb, eps_mb;
-      float update_miniball(Cell* add, Cell* sub, bool UPDATE);
+      double eps_scc, x_scc, y_scc, r2_scc;
+      double eps_lic, x_lic, y_lic, r2_lic;
+      float update_scc(Cell* add, Cell* sub, bool UPDATE);
+      float update_lic(Cell* add, Cell* sub, bool UPDATE);
 
       void make_ring();
-      void add_cell_to_ring(Cell* c);
+      void divert_ring_at_cell(Cell* c, bool CW);
+      std::pair<std::pair<float, float>, float> get_circle_coords(RadiusType rt);
       std::vector<std::pair<float, float> > get_point_ring();
       void get_node_ring(std::vector<Node*>& nr, Cell* cell = 0, int i = -1);
-      // void sub_cell_to_ring(Cell* c);
 
       bg_mpoly poly;
       bg_mpt   mpt;
 
       double   ch_area;
       bg_poly  ch_poly;
+      bp_pt    ch_pt;
+      float    ch_x, ch_y;
       std::vector<Node*> node_ring;
 
   };
@@ -210,14 +231,17 @@ namespace Cluscious {
       unsigned long rcount, nregions;
       double target;
 
+      int total_iterations;
+
       void add_cell(Cell);
       void add_edge(int cell_id, int edge_id, int nodea, int nodeb);
       void add_node(int node_id, float x, float y);
       void add_node_edge(int node_id, int edge_id);
       int  get_ncells();
 
+      std::pair<std::pair<float, float>, float> get_circle_coords(size_t rid, RadiusType rt);
       std::vector<std::pair<float, float> > get_point_ring(size_t rid);
-      void add_cell_to_region(size_t rid, int cid);
+      void add_cell_to_region(int cid, size_t rid);
 
       std::map<int, int> cell_region_map();
       std::vector<int> border_cells(bool EXT, int rid);
@@ -240,16 +264,32 @@ namespace Cluscious {
       std::vector<Region*> regions;
       std::vector<Node*>   nodes;
 
-
       void rand_init(int s);
       void grow_kmeans(int popgrow);
 
       void load_partition(std::map<int, int> reg_map);
       void iterate(int niter, float tol, int r);
 
-      void oiterate(ObjectiveMethod omethod, int niter, float tol, float alpha, int r, int verbose);
+      float ALPHA;
+      void oiterate(ObjectiveMethod omethod, int niter, float tol, int seed, int r, int verbose);
+      bool greedy(Region* rit, ObjectiveMethod omethod, float tol, float best_move = 0, bool random = false, int r = -1, bool verbose = false);
+      bool greedy_evaluate(Region* r, Cell* b, float tol, ObjectiveMethod omethod, float& best_move, Cell*& b_opt_c, std::unordered_set<Cell*>& opt_strands, bool verbose = false);
 
-      void transfer_strand(std::unordered_set<Cell*>& strand, Region* source, Region* dest);
+      int  RANDOM;
+      std::mt19937 mersenne;
+
+      int  TRADE;
+      bool trade(Region*, RadiusType);
+
+      size_t TABU_LENGTH;
+      std::deque<Cell*>    tabu;
+      void set_tabu(Cell* c) { tabu.push_front(c); while (tabu.size() > TABU_LENGTH) tabu.pop_back(); }
+      bool is_tabu(Cell* c)  { return TABU_LENGTH && find(tabu.begin(), tabu.end(), c) != tabu.end(); }
+      bool is_tabu_strand(std::unordered_set<Cell*> s) { for (auto c : s) if (is_tabu(c)) return true; return false;}
+
+      size_t DESTRAND_MIN, DESTRAND_MAX;
+      void transfer_strand(std::unordered_set<Cell*>& strand);
+      int  destrand(int mini, int maxi);
 
 
   };

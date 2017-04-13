@@ -16,7 +16,7 @@ EXTENSION = distutils.extension.Extension(
     extra_link_args    = ouff_mac,
     )
 
-EXT_MODULES=Cython.Build.cythonize([EXTENSION], language='c++')
+EXT_MODULES=Cython.Build.cythonize([EXTENSION], language='c++', gdb_debug=True)
 
 distutils.core.setup(
     name = 'simple',

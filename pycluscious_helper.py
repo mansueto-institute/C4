@@ -21,13 +21,10 @@ from shapely.geometry import MultiPolygon, Polygon, Point, MultiLineString, Line
 
 import os, glob
 
-con = psycopg2.connect(database = "census", user = user, password = passwd,
-                       host = "saxon.harris.uchicago.edu", port = 5432)
-
 shapefile = "shapes/{}.shp"
 stateinfo = "shapes/{}_info.csv"
-edge_file = "shapes/{}_edges.csv"
-node_file = "shapes/{}_nodes.csv"
+edge_file = "shapes/{}_edges"
+node_file = "shapes/{}_nodes"
 
 def ens_dir(f, quiet = False):
   if not os.path.isdir(f):
@@ -51,7 +48,16 @@ pycl_methods = {"reock"     : pycl.ObjectiveMethod.REOCK,
                 "inertia_p" : pycl.ObjectiveMethod.INERTIA_P,
                 "polsby"    : pycl.ObjectiveMethod.POLSBY,
                 "hull_a"    : pycl.ObjectiveMethod.HULL_A,
-                "path_frac" : pycl.ObjectiveMethod.PATH_FRAC}
+                "path_frac" : pycl.ObjectiveMethod.PATH_FRAC,
+                "ehrenburg" : pycl.ObjectiveMethod.EHRENBURG}
+
+
+pycl_circles = {"area"     : pycl.RadiusType.EQUAL_AREA, 
+                "area_pop" : pycl.RadiusType.EQUAL_AREA_POP, 
+                "circ"     : pycl.RadiusType.EQUAL_CIRCUMFERENCE, 
+                "scc"      : pycl.RadiusType.SCC, 
+                "lic"      : pycl.RadiusType.LIC}
+
 
 us_states = ["al", "ak", "az", "ar", "ca", "co", "ct", "de", "dc",
              "fl", "ga", "hi", "id", "il", "in", "ia", "ks", "ky",
@@ -77,6 +83,9 @@ def cache_stateinfo(usps, filename = None):
 
    if os.path.exists(filename): return
 
+   con = psycopg2.connect(database = "census", user = user, password = passwd,
+                          host = "saxon.harris.uchicago.edu", port = 5432)
+
    info = pd.read_sql("SELECT epsg, fips, seats FROM states WHERE usps = upper('{}');".format(usps), con)
    info.to_csv(filename, index = False)
 
@@ -90,10 +99,14 @@ def cache_shapefile(usps, filename = None):
 
    state = get_state_info(usps)
 
+   con = psycopg2.connect(database = "census", user = user, password = passwd,
+                          host = "saxon.harris.uchicago.edu", port = 5432)
+
    geo_df = gpd.GeoDataFrame.from_postgis(ps_query.tracts.format(state["fips"]), con,
                                           geom_col='geometry', crs = from_epsg(state["epsg"]))
 
-   geo_df[["a", "pop", "x", "y", "geometry"]].to_file(filename)
+   geo_df["id"] = geo_df.index
+   geo_df[["id", "a", "pop", "x", "y", "split", "geometry"]].to_file(filename)
 
 
 
@@ -102,10 +115,19 @@ def cache_edge_file(usps, filename = None):
    if not filename:
       filename = edge_file.format(usps.lower())
 
-   if os.path.exists(filename): return
+   if os.path.exists(filename + ".csv"): return
 
-   pd.read_sql(ps_query.edges.format(get_fips(usps)), con).to_csv(filename, index = False)
+   state = get_state_info(usps)
 
+   con = psycopg2.connect(database = "census", user = user, password = passwd,
+                          host = "saxon.harris.uchicago.edu", port = 5432)
+
+   geo_df = gpd.GeoDataFrame.from_postgis(ps_query.edges.format(state["fips"]), con,
+                                          geom_col='lines', crs = from_epsg(state["epsg"]))
+
+   geo_df[geo_df["rev"] == False][["eid", "lines"]].to_file(filename + ".shp")
+
+   geo_df[["rn","seq","eid","rev","nodea","nodeb"]].to_csv(filename + ".csv", index = False)
 
 
 def cache_node_file(usps, filename = None):
@@ -113,17 +135,33 @@ def cache_node_file(usps, filename = None):
    if not filename:
       filename = node_file.format(usps.lower())
 
-   if os.path.exists(filename): return
+   if os.path.exists(filename + ".csv"): return
 
-   pd.read_sql(ps_query.nodes.format(get_fips(usps)), con).to_csv(filename, index = False)
+   state = get_state_info(usps)
+
+   con = psycopg2.connect(database = "census", user = user, password = passwd,
+                          host = "saxon.harris.uchicago.edu", port = 5432)
+
+   ndf = pd.read_sql(ps_query.nodes.format(state["fips"]), con)
+
+   ndf[["nid", "x", "y", "nseq", "eid"]].to_csv(filename + ".csv", index = False)
+
+   geometry = [Point(xy) for xy in zip(ndf.x, ndf.y)]
+   geo_ndf = gpd.GeoDataFrame(ndf, crs = from_epsg(state["epsg"]), geometry=geometry)
+
+   geo_ndf[ndf["nseq"] == 1][["nid", "geometry"]].to_file(filename + ".shp")
 
 
 
-def plot_map(gdf, filename, crm, hlt, pop = False, figsize = 10, label = "", ring = None):
+
+def plot_map(gdf, filename, crm, hlt, shading = "district", figsize = 10, label = "", ring = None, circ = None, legend = False):
 
     gdf["C"] = pd.Series(crm)
     gdf["H"] = 0
     gdf.loc[hlt, "H"] = 1
+
+    if shading == "density":
+      gdf["density"] = gdf["pop"]/gdf["a"]
 
     dis = gdf.dissolve("C", aggfunc='sum')
     dis.reset_index(inplace = True)
@@ -134,6 +172,7 @@ def plot_map(gdf, filename, crm, hlt, pop = False, figsize = 10, label = "", rin
     bounds = gdf.total_bounds
     xr = bounds[2] - bounds[0]
     yr = bounds[3] - bounds[1]
+    fs = (figsize * np.sqrt(xr/yr), figsize * np.sqrt(yr/xr))
 
     bins = min(5, dis.shape[0])
     q = ps.Quantiles(dis["frac"], k = bins)
@@ -145,18 +184,20 @@ def plot_map(gdf, filename, crm, hlt, pop = False, figsize = 10, label = "", rin
     if len(set(labels)) == len(labels):
       dis["qyb"].cat.rename_categories(labels, inplace = True)
 
-    if pop: 
-      alpha, fc = 0.3, "red"
+    if shading == "target":
       ax = dis.plot(column = "qyb", alpha = 0.3, categorical = True, cmap = "Greys",
-                    legend = True, figsize = (figsize * np.sqrt(xr/yr), figsize * np.sqrt(yr/xr)))
+                    legend = True, figsize = fs)
 
-    else: 
-      ax = dis.plot("C", alpha = 0.5, categorical = True, cmap = "nipy_spectral", linewidth = 0.2, # color = "0.9",
-                    legend = True, figsize = (figsize * np.sqrt(xr/yr), figsize * np.sqrt(yr/xr)))
+      gdf[gdf["H"] == 1].plot(facecolor = "red", alpha = 0.3, linewidth = 0.05, ax = ax)
 
-      alpha, fc = 0.3, "grey"
+    elif shading == "density":
+      ax = gdf.plot(column = "density", cmap = "gray", scheme = "quantiles", k = 9, alpha = 0.8, figsize = fs, linewidth = 0)
+      dis.plot(color = "blue", alpha = 0.3, linewidth = 1, ax = ax)
 
-    gdf[gdf["H"] == 1].plot(facecolor = fc, alpha = alpha, linewidth = 0.05, ax = ax)
+    else:
+      ax = dis.plot("C", alpha = 0.5, categorical = True, cmap = "nipy_spectral", linewidth = 1, legend = legend, figsize = fs)
+
+      gdf[gdf["H"] == 1].plot(facecolor = "grey", alpha = 0.3, linewidth = 0.05, ax = ax)
 
     ax.set_xlim([bounds[0] - 0.1 * xr, bounds[2] + 0.1 * xr])
     ax.set_ylim([bounds[1] - 0.1 * yr, bounds[3] + 0.1 * yr])
@@ -167,8 +208,17 @@ def plot_map(gdf, filename, crm, hlt, pop = False, figsize = 10, label = "", rin
 
     if ring is not None:
       ring["C"] = ring.index
-      ring.plot("C", categorical = True, cmap = "nipy_spectral",  ax = ax, linewidth = 0.6)
-      ring.plot(color = "white", ax = ax, linewidth = 0.2)
+      if shading == "density":
+        ring.plot(color = "black", ax = ax, linewidth = 2.5)
+        ring.plot(color = "white", ax = ax, linewidth = 0.7)
+      else:
+        ring.plot("C", categorical = True, cmap = "nipy_spectral",  ax = ax, linewidth = 3)
+        ring.plot(color = "white", ax = ax, linewidth = 1)
+
+    if circ is not None:
+      circ["C"] = circ.index
+      circ.plot(color = "white", ax = ax, linewidth = 2)
+
 
     if not filename: return ax
 
