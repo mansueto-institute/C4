@@ -39,6 +39,8 @@
 #include <boost/graph/dijkstra_shortest_paths.hpp>
 #include <boost/graph/random.hpp>
 
+#include <armadillo>
+
 #define DEBUG_ME std::cerr << __FILE__ << "  " << __FUNCTION__ << "::" << __LINE__ << std::endl
 
 #include "cluscious/topology.h"
@@ -91,14 +93,17 @@ namespace Cluscious {
   bool cellp_set_len_compare(std::unordered_set<Cell*> s1, std::unordered_set<Cell*> s2);
 
   auto uo_set_nempty = [](std::unordered_set<Cell*> i) { return !i.empty(); };
+  auto uo_set_empty  = [](std::unordered_set<Cell*> i) { return  i.empty(); };
 
   bool maxed_or_empty(unsigned int max, std::vector<std::unordered_set<Cell*> >& graphs, 
                                         std::vector<std::unordered_set<Cell*> >& to_add);
 
-  int sign(double x);
+  template <typename T> int sign(T x);
+  template <typename T> T clip(const T& n, T clipval);
 
-  enum ObjectiveMethod {DISTANCE_A, DISTANCE_P, INERTIA_A, INERTIA_P, HULL_A, POLSBY, REOCK, EHRENBURG, POLSBY_W, PATH_FRAC};
-  enum RadiusType      {EQUAL_AREA, EQUAL_AREA_POP, EQUAL_CIRCUMFERENCE, SCC, LIC, HULL};
+  enum ObjectiveMethod {DISTANCE_A, DISTANCE_P, INERTIA_A, INERTIA_P, HULL_A, POLSBY, REOCK, EHRENBURG, POLSBY_W,
+                        PATH_FRAC, AXIS_RATIO};
+  enum RadiusType      {EQUAL_AREA, EQUAL_AREA_POP, EQUAL_CIRCUMFERENCE, SCC, LIC, HULL, POWER};
 
   class Cell {
 
@@ -110,7 +115,9 @@ namespace Cluscious {
            double a, weight_map wm, bool is_univ_edge, bool is_split); // , std::string mp_wkt);
 
       float d2(float xi, float yi) { return (x-xi)*(x-xi) + (y-yi)*(y-yi); }
+      float d2(Cell* ci) { return (x-ci->x)*(x-ci->x) + (y-ci->y)*(y-ci->y); }
       float dist(float xi, float yi) { return sqrt(d2(xi, yi)); }
+      float dist(Cell* ci) { return sqrt(d2(ci->x, ci->y)); }
 
       void add_edge(int edge_id, int nodea, int nodeb);
       void adjacency_to_pointers(std::vector<Cell*>&);
@@ -125,6 +132,7 @@ namespace Cluscious {
 
       std::unordered_set<int> neighbor_regions(bool QUEEN = false);
       bool is_neighbor(Cell* c) { for (auto& n : nm) if (n.first == c) return true; return false; }
+      bool touches_region(int r) { for (auto& n : nm) if (n.first->region == r) return true; return false; }
 
       int  get_ext_edge_idx();
       int  get_edge_idx(int id);
@@ -171,21 +179,25 @@ namespace Cluscious {
 
       double obj(ObjectiveMethod omethod, Cell* add, Cell* sub, bool verbose);
 
-      double obj_distance (Cell* add, Cell* sub, float xx, float yy);
-      double obj_inertia_a(Cell* add, Cell* sub, bool verbose);
-      double obj_inertia_p(Cell* add, Cell* sub, bool verbose);
-      double obj_reock    (Cell* add, Cell* sub, bool verbose);
-      double obj_hull     (Cell* add, Cell* sub, bool verbose);
-      double obj_polsby   (Cell* add, Cell* sub, bool verbose);
-      double obj_path_frac(Cell* add, Cell* sub, bool verbose);
-      double obj_ehrenburg(Cell* add, Cell* sub, bool verbose);
+      double obj_distance  (Cell* add, Cell* sub, float xx, float yy);
+      double obj_inertia_a (Cell* add, Cell* sub, bool verbose);
+      double obj_inertia_p (Cell* add, Cell* sub, bool verbose);
+      double obj_reock     (Cell* add, Cell* sub, bool verbose);
+      double obj_hull      (Cell* add, Cell* sub, bool verbose);
+      double obj_polsby    (Cell* add, Cell* sub, bool verbose);
+      double obj_path_frac (Cell* add, Cell* sub, bool verbose);
+      double obj_ehrenburg (Cell* add, Cell* sub, bool verbose);
+      double obj_axis_ratio(Cell* add, Cell* sub, bool verbose);
 
       float d2(float x, float y, RadiusType rt = RadiusType::EQUAL_AREA);
+      float d2(Cell* c, RadiusType rt = RadiusType::EQUAL_AREA) { return d2(c->x, c->y, rt); }
       float dist(float x, float y, RadiusType rt = RadiusType::EQUAL_AREA) { return sqrt(d2(x, y, rt)); }
+      float dist(Cell*c, RadiusType rt = RadiusType::EQUAL_AREA) { return dist(c, rt); }
+
 
       int id;
       int pop;
-      int ncells;
+      size_t ncells;
       double area;
       double xctr, yctr;
       double xpctr, ypctr;
@@ -204,11 +216,18 @@ namespace Cluscious {
       float update_scc(Cell* add, Cell* sub, bool UPDATE);
       float update_lic(Cell* add, Cell* sub, bool UPDATE);
 
+      Cell* pcell;
+      float pd2;
+
       void make_ring();
       void divert_ring_at_cell(Cell* c, bool CW);
       std::pair<std::pair<float, float>, float> get_circle_coords(RadiusType rt);
       std::vector<std::pair<float, float> > get_point_ring();
       void get_node_ring(std::vector<Node*>& nr, Cell* cell = 0, int i = -1);
+
+      std::pair<float, float> update_pca(Cell* add = 0, Cell* sub = 0, bool vec = false, bool UPDATE = false);
+      float pca0, pca1;
+      std::pair<float, float> pca_vec0, pca_vec1;
 
       bg_mpoly poly;
       bg_mpt   mpt;
@@ -228,7 +247,7 @@ namespace Cluscious {
       Universe();
       Universe(int);
       int pop;
-      unsigned long rcount, nregions;
+      unsigned long rcount, ncells, nregions;
       double target;
 
       int total_iterations;
@@ -237,7 +256,6 @@ namespace Cluscious {
       void add_edge(int cell_id, int edge_id, int nodea, int nodeb);
       void add_node(int node_id, float x, float y);
       void add_node_edge(int node_id, int edge_id);
-      int  get_ncells();
 
       std::pair<std::pair<float, float>, float> get_circle_coords(size_t rid, RadiusType rt);
       std::vector<std::pair<float, float> > get_point_ring(size_t rid);
@@ -249,10 +267,11 @@ namespace Cluscious {
 
       void connect_graph();
 
-      void trim_graph();
-      int  merge_strands(Cell* c, int max);
+      void trim_graph(float max_frac = 0.9);
+      int  merge_strands(Cell* c, float max_frac = 0.9);
 
 
+      bool loaded_topo;
       bgraph dijkstra_graph;
       void adjacency_to_pointers();
       void node_ids_to_pointers();
@@ -264,8 +283,16 @@ namespace Cluscious {
       std::vector<Region*> regions;
       std::vector<Node*>   nodes;
 
+      void assign_to_zero();
+      bool split_region(int r = 0);
+      void split_line_init();
       void rand_init(int s);
       void grow_kmeans(int popgrow);
+      void grow_random(int seed = 0);
+
+      void iterate_power(float tol, int niter, int reset);
+      void voronoi_classify();
+      void center_power_cells();
 
       void load_partition(std::map<int, int> reg_map);
       void iterate(int niter, float tol, int r);
@@ -289,7 +316,7 @@ namespace Cluscious {
 
       size_t DESTRAND_MIN, DESTRAND_MAX;
       void transfer_strand(std::unordered_set<Cell*>& strand);
-      int  destrand(int mini, int maxi);
+      int  destrand(int mini, size_t maxi);
 
 
   };

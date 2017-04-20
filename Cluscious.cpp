@@ -7,7 +7,7 @@ namespace Cluscious {
                                                              {INERTIA_A, EQUAL_AREA}, {INERTIA_P, EQUAL_AREA_POP}, 
                                                              {HULL_A, HULL}, {POLSBY, EQUAL_CIRCUMFERENCE},{REOCK, SCC}, 
                                                              {EHRENBURG, LIC}, {POLSBY_W, EQUAL_CIRCUMFERENCE}, 
-                                                             {PATH_FRAC, EQUAL_AREA}};
+                                                             {PATH_FRAC, EQUAL_AREA}, {AXIS_RATIO, EQUAL_AREA}};
 
   Cell::Cell()
     : region(-1), id(0), pop(0), x(0), y(0), area(0) {}
@@ -301,12 +301,13 @@ namespace Cluscious {
       // and _in the same region._
       std::unordered_set<Cell*> lone_star;
       lone_star.insert(n.first);
-      for (auto& nn : n.first->nm) 
+      for (auto& nn : n.first->nm) {
         if (nn.first->region == region &&
             // best this way?  removing this would allow corners...
             nn.first->wm.find(id) != nn.first->wm.end() &&
             (QUEEN || nn.second > 0)) // ROOK
           lone_star.insert(nn.first);
+      }
 
       // Then get a vector of all the existing
       // graphs that it's connected to:
@@ -378,7 +379,8 @@ namespace Cluscious {
     while (graphs.size() > 1 && 
 
               // may not be empty, but can still flesh out the sets.
-           (( max_merge && !maxed_or_empty(max_merge, graphs, to_add)) ||   
+           (( max_merge && (std::none_of(to_add.begin(), to_add.end(), uo_set_empty) ||
+                            !maxed_or_empty(max_merge, graphs, to_add))) ||   
            // (( max_merge && std::any_of(to_add.begin(), to_add.end(), uo_set_nempty)) ||  
 
               // all of them have neighbors, so we've gotta keep searching.
@@ -473,6 +475,9 @@ namespace Cluscious {
       nm_idx++;
     }
 
+    for (auto ei : m->enclaves_and_islands)
+      enclaves_and_islands.push_back(ei);
+
     enclaves_and_islands.push_back(m->id);
 
   }
@@ -480,17 +485,22 @@ namespace Cluscious {
   Region::Region() 
     : id(0), pop(0), ncells(0), area(0), xctr(0), yctr(0), xpctr(0), ypctr(0), sumw_border(0),
       has_topo(false), eps_scc(10), x_scc(0), y_scc(0), r2_scc(0),
-      eps_lic(2), x_lic(0), y_lic(0), r2_lic(std::numeric_limits<double>::infinity()) {}
+      eps_lic(2), x_lic(0), y_lic(0), r2_lic(std::numeric_limits<double>::infinity()),
+      pcell(0), pd2(0)
+  {}
 
   Region::Region(int rid) 
     : id(rid), pop(0), ncells(0), area(0), xctr(0), yctr(0), xpctr(0), ypctr(0), sumw_border(0),
       has_topo(false), eps_scc(10), x_scc(0), y_scc(0), r2_scc(0), 
-      eps_lic(2), x_lic(0), y_lic(0), r2_lic(std::numeric_limits<double>::infinity()) {}
+      eps_lic(2), x_lic(0), y_lic(0), r2_lic(std::numeric_limits<double>::infinity()),
+      pcell(0), pd2(0)
+  {}
 
   Region::Region(int rid, Cell* c) 
     : id(rid), pop(0), ncells(0), area(0), xctr(c->x), yctr(c->y), xpctr(c->x), ypctr(c->y), sumw_border(0),
       has_topo(false), eps_scc(10), x_scc(0), y_scc(0), r2_scc(0),
-      eps_lic(2), x_lic(0), y_lic(0), r2_lic(std::numeric_limits<double>::infinity())
+      eps_lic(2), x_lic(0), y_lic(0), r2_lic(std::numeric_limits<double>::infinity()),
+      pcell(c), pd2(0)
   { add_cell(c, true); }
 
 
@@ -537,8 +547,10 @@ namespace Cluscious {
     // get assigned after all ext. neighbors are,
     // and then never re-visited.
     if (c->is_univ_edge) int_borders.insert(c);
-    for (auto n : c->nm) if (n.first->region != id) {
-      int_borders.insert(c); break;
+    for (auto n : c->nm) {
+      if (n.first->region != id) {
+        int_borders.insert(c); break;
+      }
     }
 
     // Iterate over the MOVING cell's neighbors.
@@ -598,9 +610,6 @@ namespace Cluscious {
 
     if (c->region == id) c->region = -1;
 
-    area -= c->area;
-    pop  -= c->pop;
-
     ncells--;
     cells.erase(c);
 
@@ -618,6 +627,10 @@ namespace Cluscious {
       update_scc(0, c, true); // sub cell, do update.
       if (has_topo && node_ring.size()) update_lic(0, c, true);
     }
+    
+    area -= c->area;
+    pop  -= c->pop;
+
 
     mpt.clear(); // faster to just re-copy.
     for (auto c : cells) bgeo::append(mpt, c->pt);
@@ -683,8 +696,8 @@ namespace Cluscious {
           total_border += bn.second;
       }
       if (total_border == 0) {
-        DEBUG_ME;
-        cout << "cell " << b->id << " is in the external border of Region " << id << " but has no non-zero (ROOK) connection to it." << endl;
+        cout << __FUNCTION__ << "::" << __LINE__ 
+             << " :: cell " << b->id << " is in the external border of Region " << id << " but has no non-zero connection to it." << endl;
       }
     }
 
@@ -705,6 +718,7 @@ namespace Cluscious {
       case RadiusType::SCC:                  return std::make_pair(std::make_pair(x_scc, y_scc), sqrt(r2_scc)); 
       case RadiusType::LIC:                  return std::make_pair(std::make_pair(x_lic, y_lic), sqrt(r2_lic));  
       case RadiusType::HULL:                 return std::make_pair(std::make_pair(ch_x, ch_y)  , sqrt(ch_area/M_PI));
+      case RadiusType::POWER:                return std::make_pair(std::make_pair(pcell->x, pcell->y), sqrt(pd2));
       case RadiusType::EQUAL_AREA:
       default:                               return std::make_pair(std::make_pair(xctr,  yctr),  sqrt(area/M_PI));   
     }
@@ -750,9 +764,11 @@ namespace Cluscious {
       this_edge_idx = curr_cell->get_ext_edge_idx();
     }
     if (this_edge_idx < 0) {
+      DEBUG_ME; cout << "Region " << id << " no good start on get_node_ring(), with ncells=" << ncells << endl;
       throw std::runtime_error(std::string("No good starting edge cell found!!"));
     }
 
+    int start_cell_id = curr_cell->id;
     Edge* this_edge = &curr_cell->edges[this_edge_idx];
     // cout << "Starting cell for node ring " << curr_cell->id << endl;
     Node* node = this_edge->nb;
@@ -789,8 +805,15 @@ namespace Cluscious {
         // If the two directions give different edges, we've got a corner.
         if (corner_edge != next_edge) {
 
+          // If edge's start and end nodes are equal,
+          // this face is itself a burr and will cause 
+          // an infinite loop.  Switch to the other.
+          if (next_edge->na_id == next_edge->nb_id) {
+            next_edge = corner_edge;
+            next_cell = corner_cell;
+
           // If it's the first time we've seen this cell, 
-          if (diagonals.find(node) == diagonals.end()) {
+          } else if (diagonals.find(node) == diagonals.end()) {
             // add it to the list of potential diagonals.
             diagonals[node] = std::make_pair(corner_cell, corner_cell->get_edge_idx(corner_edge->id));
           } else {
@@ -828,13 +851,13 @@ namespace Cluscious {
 
     if (loop_safe == 1000) {
       cerr << "WARNING :: Region " << id << " :: get_node_ring reached max loop value. "
-           << "Output size is " << ring.size() << "." << endl;
+           << "Output size is " << ring.size() << " and ncells=" << ncells << "." << endl;
+      cerr << "Starting cell was " << start_cell_id << " and start node was " << start_node->id << endl;
+      for (auto n : ring) cout << n->id << " ";
+      cout << endl;
     }
 
-    if (!ring.size()) {
-
-      assert(ring.size());
-    }
+    assert(ring.size());
 
   }
 
@@ -1126,7 +1149,7 @@ namespace Cluscious {
     construct_voronoi(poly_pts.begin(), poly_pts.end(), &vd);
 
     double dist, x_max = xctr, y_max = yctr;
-    double dist_max= boost::numeric::bounds<double>::lowest();
+    double dist_max = boost::numeric::bounds<double>::lowest();
 
     for (auto it : vd.vertices()) {
 
@@ -1154,21 +1177,50 @@ namespace Cluscious {
 
 
 
+  std::pair<float, float> Region::update_pca(Cell* add, Cell* sub, bool vec, bool UPDATE) {
+
+    arma::mat M = arma::zeros<arma::mat>(ncells,2);
+
+    int ci = 0;
+    for (auto& c : cells) {
+      M(ci,0) = c->x;
+      M(ci,1) = c->y;
+      ci++;
+    }
+
+    arma::mat coeff,  score;
+    arma::vec latent, tsquared;
+
+    arma::princomp(coeff, score, latent, tsquared, M);
+
+    if (UPDATE) {
+      pca0 = latent(0); pca1 = latent(1);
+
+      pca_vec0 = std::make_pair(coeff(0, 0), coeff(1, 0));
+      pca_vec1 = std::make_pair(coeff(0, 1), coeff(1, 1));
+    }
+
+    if (vec) return std::make_pair(coeff(0, 0), coeff(1, 0));
+    else     return std::make_pair(latent(0),   latent(1));
+
+  }
+
+
   Universe::Universe() {}
   Universe::Universe(int n) 
-    : pop(0), rcount(0), nregions(n), total_iterations(0), ALPHA(4), RANDOM(false), TRADE(true), TABU_LENGTH(0),
+    : pop(0), rcount(0), ncells(0), nregions(n), total_iterations(0), loaded_topo(false), 
+    ALPHA(4), RANDOM(false), TRADE(true), TABU_LENGTH(0),
     DESTRAND_MIN(2), DESTRAND_MAX(15)
   {
 
     assert(nregions > 0);
 
-    for (size_t ri = 0; ri < nregions; ri++) 
-      regions.push_back(new Region(ri));
   }
 
   void Universe::add_cell(Cell c) {
   
     cells.push_back(new Cell(c));
+    ncells++;
 
     pop += c.pop;
     target = pop/nregions;
@@ -1184,6 +1236,7 @@ namespace Cluscious {
       }
     }
 
+    cout << "Edge " << edge_id << " did not find expected cell " << cell_id << endl;
     throw std::runtime_error(std::string("Failed to find cell for edge!"));
   }
 
@@ -1208,8 +1261,10 @@ namespace Cluscious {
   }
 
   void Universe::node_ids_to_pointers() {
-    for (auto r : regions) r->has_topo = true;
-    for (auto c : cells)   c->node_ids_to_pointers(nodes);
+
+    for (auto c : cells) c->node_ids_to_pointers(nodes);
+
+    loaded_topo = true;
   }
 
   void Universe::build_dijkstra_graph() {
@@ -1271,30 +1326,25 @@ namespace Cluscious {
   }
 
 
-  int Universe::get_ncells() { return cells.size(); }
-
   void Universe::rand_init(int seed = 0) {
 
     if (cells.size() < nregions) {
       throw std::runtime_error(std::string("Cannot make districts: fewer cells than districts!"));
     }
 
-    while (nregions < regions.size())
-      regions.push_back(new Region(regions.size()-1));
-
     mersenne.seed(seed);
-    int ncells = get_ncells();
 
     // Draw without replacement.
     int c = -1;
     std::unordered_set<int> cell_idx({-1});
-    for (auto r : regions) {
+    for (size_t ri = 0; ri < nregions; ri++) {
 
+      // find a cell.
       while (cell_idx.find(c) != cell_idx.end())
         c = mersenne() % ncells;
 
       cell_idx.insert(c);
-      r->add_cell(cells[c]);
+      regions.push_back(new Region(ri, cells[c]));
     }
 
   }
@@ -1461,10 +1511,9 @@ namespace Cluscious {
     }
 
     if (graphs.size() == 1) {
-      cout << "Congratulations, it was already connected!" << endl;
+      cout << "The graph is connected out of the box." << endl;
       return;
     }
-
 
     while (graphs.size() > 1) {
 
@@ -1479,7 +1528,6 @@ namespace Cluscious {
       Cell* for_min_c = 0;
       double min_dist2 = std::numeric_limits<double>::infinity();
       for (int fg = int(graphs.size())-2; fg >= 0; fg--) {
-        cout << "Looking at a foreign graph!" << endl;
 
         for (auto fc : graphs[fg]) {
           for (auto lc : graphs.back()) {
@@ -1498,14 +1546,27 @@ namespace Cluscious {
       // link the closest foreign and local cells;
       // add the contents of the smaller graph
       // to the larger one, then pop off the graph.
-      loc_min_c->nm.push_back(std::make_pair(for_min_c, 1.));
-      for_min_c->nm.push_back(std::make_pair(loc_min_c, 1.));
+      loc_min_c->wm.insert(std::make_pair(for_min_c->id, 1e-5));
+      for_min_c->wm.insert(std::make_pair(loc_min_c->id, 1e-5));
+      loc_min_c->nm.push_back(std::make_pair(for_min_c, 1e-5));
+      for_min_c->nm.push_back(std::make_pair(loc_min_c, 1e-5));
       for (auto lc : graphs.back()) graphs[for_min_g].insert(lc);
-      cout << "lc" << loc_min_c->id << " to "
-           << "fc" << for_min_c->id << "   "
-           << "d=" << sqrt(min_dist2) << endl;
       cout << "Added a graph of size " << graphs.back().size() 
-                << " to a graph of size " << graphs[for_min_g].size() << endl;
+           << " to a graph of size " << graphs[for_min_g].size()
+           << " the elements :: ";
+      for (auto c : graphs.back()) cout << c->id << " ";
+      cout << endl;
+      cout << "  >>  lc" << loc_min_c->id << " to "
+           << "fc" << for_min_c->id << "   "
+           << "(d2=" << sqrt(min_dist2) << ").  ";
+      cout << "fc has neighbors :: (";
+      for (auto n : for_min_c->nm) cout << n.first->id << " ";
+      cout << ") and strands of length ";
+
+      std::vector<std::unordered_set<Cell*> > nsets;
+      for_min_c->neighbor_sets(nsets, ncells, true);
+      for (auto ng : nsets) cout << ng.size() << " ";
+      cout << endl;
 
       graphs.pop_back();
 
@@ -1566,24 +1627,330 @@ namespace Cluscious {
 
     std::sort(regions.begin(), regions.end(), id_compare);
 
-    for (auto r : regions) if (r->has_topo) {
-      r->make_ring();
-      r->update_lic(0, 0, true);
+    if (loaded_topo) {
+      for (auto r : regions) {
+        r->has_topo = true;
+        r->make_ring();
+        r->update_lic(0, 0, true);
+      }
     }
 
   }
 
+  void Universe::voronoi_classify() {
+
+    for (auto const& rA : regions) {
+    
+      bool moved = true;
+      while (moved) {
+        moved = false;
+
+        for (auto const& b : rA->ext_borders) {
+
+          int rBi = b->region; assert(rBi >= 0);
+          Region* rB = regions[rBi];
+
+          // We can remove up to five in strands, 
+          // so we need to start with a buffer.
+          // Having a single cell in a region causes problems.
+          if (rB->ncells < 10) continue; 
+
+          if (rA->pcell->d2(b) - rA->pd2 >
+              rB->pcell->d2(b) - rB->pd2) continue;
+
+          std::unordered_set<Cell*> strands;
+          int nsets = b->neighbor_strands(strands, 5, false);
+          if (nsets != 1 && !strands.size()) continue;
+          
+          transfer_strand(strands);
+          regions[b->region]->remove_cell(b);
+          rA->add_cell(b);
+          moved = true;
+          break;
+        }
+      }
+    }
+  }
+
+  void Universe::center_power_cells() {
+    
+    // Find the cell in the region closest 
+    // to the region's barycenter.
+    for (const auto& r : regions) {
+      float min_d2 = std::numeric_limits<float>::infinity();
+      for (auto c : r->cells) {
+        if (r->d2(c) > min_d2) continue;
+        r->pcell = c; min_d2 = r->d2(c);
+      }
+    }
+  
+    // Now set the initial d2 distance as the minimum
+    // intradistrict-center distance.
+    for (const auto& rA : regions) {
+      rA->pd2 = std::numeric_limits<float>::infinity();
+      for (const auto& rB : regions)
+        if (rA != rB && rA->pcell->d2(rB->pcell) < rA->pd2)
+          rA->pd2 = rA->pcell->d2(rB->pcell);
+    }
+
+  }
+
+
+  void Universe::iterate_power(float ptol, int niter, int reset_center = false) {
+
+    for (auto r : regions) r->has_topo = false;
+
+    if (reset_center) center_power_cells();
+
+    for (int i = 0; i < niter; i++) {
+
+      if (!(i % 100)) {
+        float dtol = 0.;
+        for (auto r : regions)
+          if (fabs(r->pop/target - 1) > dtol)
+            dtol = fabs(r->pop/target - 1);
+
+        if (dtol < ptol) {
+          cout << "Power diagram met tolerance -- returning." << endl;
+          break;
+        } else cout << "Iteration " << i << ", tolerance now " << dtol << endl;
+      }
+
+      voronoi_classify();
+
+      for (const auto& r : regions) {
+        float dpop = r->pop / target - 1;
+        r->pd2 -= clip(dpop * fabs(dpop), 0.01) * r->area;
+        // if (r->pd2 < 0) r->pd2 = 0;
+      }
+
+      // Zapping -- 
+      std::vector< std::pair<float, float> > zaps(nregions, std::pair<float, float>(0, 0));
+      for (size_t rAi = 0; rAi < nregions; rAi++) {
+        Region* rA = regions[rAi];
+        for (size_t rBi = rAi+1; rBi < nregions; rBi++) {
+          Region* rB = regions[rBi];
+
+          float ab_d2 = rA->pcell->d2(rB->pcell);
+          if (ab_d2 > rA->pd2 && ab_d2 > rB->pd2)
+            continue;
+
+          float aR = 1. * rA->pop / (rA->pop + rB->pop);
+          float bR = 1. * rB->pop / (rA->pop + rB->pop);
+          float dx = rA->pcell->x - rB->pcell->x;
+          float dy = rA->pcell->y - rB->pcell->y;
+
+          zaps[rAi].first  -= dx * aR;
+          zaps[rAi].second -= dy * aR;
+          zaps[rBi].first  += dx * bR;
+          zaps[rBi].second += dy * bR;
+        }
+      }
+
+      for (size_t ri = 0; ri < nregions; ri++) {
+        if (zaps[ri].first == 0) continue;
+
+        Region* reg = regions[ri];
+        float xm = reg->pcell->x - zaps[ri].first;
+        float ym = reg->pcell->y - zaps[ri].second;
+
+        float min_d2 = std::numeric_limits<float>::infinity();
+        for (auto n : reg->pcell->nm) {
+
+          bool taken = false;
+          for (auto r : regions) 
+            if (n.first == r->pcell)
+              taken = true;
+          if (taken) continue;
+
+          if (min_d2 > n.first->d2(xm, ym)) {
+            min_d2 = n.first->d2(xm, ym);
+            reg->pcell = n.first;
+          }
+        }
+      }
+      
+      // No region can have a d2 larger than 
+      // its smallest intra-region distance.
+      for (const auto& rA : regions) {
+        for (const auto& rB : regions)
+          if (rA != rB && rA->pcell->d2(rB->pcell) < rA->pd2)
+            rA->pd2 = rA->pcell->d2(rB->pcell);
+      }
+
+      // Every 10 moves, you can take
+      // a single step towards the barycenter.
+      if (i % 20 == 0) {
+        for (const auto& r : regions) {
+          float min_d2 = r->d2(r->pcell);
+          for (auto n : r->pcell->nm) {
+            if (r->d2(n.first) < min_d2) {
+              min_d2 = r->d2(n.first); 
+              r->pcell = n.first;
+            }
+          }
+        }
+      }
+
+    }
+
+    if (loaded_topo) {
+      for (auto r : regions) {
+        r->has_topo = true;
+        r->make_ring();
+        r->update_lic(0, 0, true);
+      }
+    }
+
+  }
+  
+  void Universe::grow_random(int seed) {
+
+    mersenne.seed(seed);
+
+    bool growth = true;
+    while (growth) {
+
+      growth = false;
+
+      std::sort(regions.begin(), regions.end(), pop_compare);
+      for (auto r : regions) {
+
+        std::vector<std::unordered_set<Cell*>::iterator> ebv(r->ext_borders.size());
+        std::iota(ebv.begin(), ebv.end(), r->ext_borders.begin());
+        std::shuffle(ebv.begin(), ebv.end(), mersenne);
+
+        for (auto const& b : ebv) {
+          if ((*b)->region >= 0) continue;
+          r->add_cell(*b);
+          growth = true;
+          break;
+        }
+
+        if (growth) break;
+      }
+    }
+
+    std::sort(regions.begin(), regions.end(), id_compare);
+
+    if (loaded_topo) {
+      for (auto r : regions) {
+        r->has_topo = true;
+        r->make_ring();
+        r->update_lic(0, 0, true);
+      }
+    }
+
+  }
+
+
   void Universe::load_partition(std::map<int, int> reg_map) {
+
+    for (size_t ri = 0; ri < nregions; ri++) 
+      regions.push_back(new Region(ri));
 
     for (auto& c : cells) 
       regions[reg_map[c->id]]->add_cell(c);
 
-    for (auto r : regions) if (r->has_topo) {
-      r->make_ring(); 
-      r->update_lic(0, 0, true);
+    if (loaded_topo) {
+      for (auto r : regions) {
+        r->has_topo = true;
+        r->make_ring();
+        r->update_lic(0, 0, true);
+      }
     }
+  }
+
+  // Would be better to reassign arbitrary...
+  void Universe::assign_to_zero() {
+    
+    // Put all of the cells in the first region.
+    if  (!regions.size()) regions.push_back(new Region(0));
+    for (auto& c : cells) regions.front()->add_cell(c);
 
   }
+
+  bool Universe::split_region(int rA) {
+
+    int rB = -1;
+    if (rA < 0 || rA >= int(regions.size())) return false;
+
+    int seats = lrint(regions[rA]->pop / target);
+    if (seats <= 1) return false;
+
+    // int sA = seats/2;
+    int sB = seats - seats/2;
+    // int nA = 1.*regions[rA]->pop * sA / seats;
+    int nB = 1.*regions[rA]->pop * sB / seats;
+
+    std::pair<float, float> pca0 = regions[rA]->update_pca(0, 0, true, true); // get vector and update values
+
+    float x0 = regions[rA]->xpctr, y0 = regions[rA]->ypctr;
+
+    Cell* opt_cell = 0;
+    float b_dot_d, max_b_dot_d = 0;
+    for (const auto& ib : regions[rA]->int_borders) {
+      b_dot_d = pca0.first * (ib->x - x0) + pca0.second * (ib->y - y0);
+      if (b_dot_d < max_b_dot_d) continue;
+      max_b_dot_d = b_dot_d;
+      opt_cell = ib;
+      // cout << "ib id=" << ib->id << " ib.d=" << b_dot_d << endl;
+    }
+
+    if (opt_cell) {
+      // cout << "rA=" << rA << "  opt id=" << opt_cell->id << " ib.d=" << max_b_dot_d << endl;
+      regions[rA]->remove_cell(opt_cell);
+      regions.push_back(new Region(regions.size(), opt_cell));
+      rB = regions.size()-1;
+    }
+
+    while (regions[rB]->pop < nB) {
+
+      max_b_dot_d = boost::numeric::bounds<float>::lowest();
+      std::unordered_set<Cell*> opt_strands;
+      for (const auto& ib : regions[rA]->int_borders) {
+        if (!ib->touches_region(rB)) continue;
+        b_dot_d = pca0.first * (ib->x - x0) + pca0.second * (ib->y - y0);
+        if (b_dot_d < max_b_dot_d) continue;
+
+        std::unordered_set<Cell*> strands;
+        int nsets = ib->neighbor_strands(strands, 5, false);
+        if (nsets != 1 && !strands.size()) continue;
+
+        opt_strands = strands;
+        opt_cell = ib;
+        max_b_dot_d = b_dot_d;
+      }
+
+      transfer_strand(opt_strands);
+      regions[rA]->remove_cell(opt_cell);
+      regions[rB]->add_cell(opt_cell);
+
+      // cout << "maxed ib id=" << opt_cell->id << " ib.d=" << max_b_dot_d << " :: pop/target=" << regions[rB]->pop/target << endl;
+    }
+
+    return true;
+
+  }
+
+  void Universe::split_line_init() {
+
+    bool new_splits = true;
+    while (new_splits) {
+      new_splits = false;
+      for (unsigned long r = 0; r < nregions; r++) 
+        new_splits |= split_region(r);
+    }
+
+    if (loaded_topo) {
+      for (auto r : regions) {
+        r->has_topo = true;
+        r->make_ring();
+        r->update_lic(0, 0, true);
+      }
+    }
+  }
+
 
   void Universe::iterate(int niter = 1, float tol = 0.05, int r = -1) {
 
@@ -1661,15 +2028,16 @@ namespace Cluscious {
 
     switch (omethod) {
 
-      case ObjectiveMethod::DISTANCE_A: return obj_distance (add, sub, xctr,  yctr ); 
-      case ObjectiveMethod::DISTANCE_P: return obj_distance (add, sub, xpctr, ypctr); 
-      case ObjectiveMethod::INERTIA_A:  return obj_inertia_a(add, sub, verbose); 
-      case ObjectiveMethod::INERTIA_P:  return obj_inertia_p(add, sub, verbose); 
-      case ObjectiveMethod::REOCK:      return obj_reock    (add, sub, verbose);
-      case ObjectiveMethod::HULL_A:     return obj_hull     (add, sub, verbose);
-      case ObjectiveMethod::POLSBY:     return obj_polsby   (add, sub, verbose);
-      case ObjectiveMethod::PATH_FRAC:  return obj_path_frac(add, sub, verbose);
-      case ObjectiveMethod::EHRENBURG:  return obj_ehrenburg(add, sub, verbose);
+      case ObjectiveMethod::DISTANCE_A: return obj_distance  (add, sub, xctr,  yctr ); 
+      case ObjectiveMethod::DISTANCE_P: return obj_distance  (add, sub, xpctr, ypctr); 
+      case ObjectiveMethod::INERTIA_A:  return obj_inertia_a (add, sub, verbose); 
+      case ObjectiveMethod::INERTIA_P:  return obj_inertia_p (add, sub, verbose); 
+      case ObjectiveMethod::REOCK:      return obj_reock     (add, sub, verbose);
+      case ObjectiveMethod::HULL_A:     return obj_hull      (add, sub, verbose);
+      case ObjectiveMethod::POLSBY:     return obj_polsby    (add, sub, verbose);
+      case ObjectiveMethod::PATH_FRAC:  return obj_path_frac (add, sub, verbose);
+      case ObjectiveMethod::EHRENBURG:  return obj_ehrenburg (add, sub, verbose);
+      case ObjectiveMethod::AXIS_RATIO: return obj_axis_ratio(add, sub, verbose);
       case ObjectiveMethod::POLSBY_W:   // weight by population -- units... ???
 
       default:
@@ -1997,6 +2365,13 @@ namespace Cluscious {
 
   }
 
+  double Region::obj_axis_ratio(Cell* add, Cell* sub, bool verbose) {
+
+    return 0;
+
+  }
+
+
   float Region::d2(float x, float y, RadiusType rt) {
 
     std::pair< std::pair<float, float>, float > circ = get_circle_coords(rt);
@@ -2009,7 +2384,9 @@ namespace Cluscious {
 
   void Universe::transfer_strand(std::unordered_set<Cell*>& strand) {
 
-    if (strand.size()) cout << "Removing strand of size " << strand.size() << endl;
+    // if (strand.size()) cout << "Removing strand of size " << strand.size() << " consisting of :: ";
+    // for (auto s : strand) cout << s->id << " ";
+    // if (strand.size()) cout << endl;
 
     while (strand.size()) {
 
@@ -2035,7 +2412,7 @@ namespace Cluscious {
     }
   }
 
-  int Universe::destrand(int min = 1, int max = 1e9) {
+  int Universe::destrand(int min = 1, size_t max = 1e9) {
 
     std::unordered_set<Cell*> opt_strand;
 
@@ -2043,7 +2420,7 @@ namespace Cluscious {
       for (auto b : r->ext_borders) {
 
         std::unordered_set<Cell*> strand;
-        int strand_max = max;
+        size_t strand_max = max;
         if (2*max > regions[b->region]->ncells) max = regions[b->region]->ncells/2-1;
         b->neighbor_strands(strand, strand_max);
 
@@ -2070,22 +2447,23 @@ namespace Cluscious {
   bool Universe::trade(Region* ir, RadiusType rt) {
 
     std::unordered_map<int, bool> ib_connected;
-    for (auto& ib : ir->int_borders)
-      ib_connected[ib->id] = ib->neighbors_connected();
+    for (auto& ib : ir->int_borders) // ROOK, SLOW
+      ib_connected[ib->id] = ib->neighbors_connected(false, false);
 
     float best = 0;
     Cell *add = 0, *sub = 0;
     for (auto& eb : ir->ext_borders) {
 
-      if (!eb->neighbors_connected(false, true)) continue;
+      if (!eb->neighbors_connected(false, false)) continue;
+
+      Region* er = regions[eb->region];
 
       for (auto& ib : ir->int_borders) {
 
-        Region* er = regions[eb->region];
         if (er->ext_borders.find(ib) == er->ext_borders.end()) continue;
 
-        if (!ib->neighbors_connected(false, true)) continue; // ROOK, FAST
-        if (eb->is_neighbor(ib)) continue; // Don't try this.
+        if (!ib_connected[ib->id]) continue;
+        if ( ib->is_neighbor(eb) ) continue; // Not worth it....
 
         float nom = er->dist(eb->x, eb->y, rt) + ir->dist(ib->x, ib->y, rt);
         float mod = er->dist(ib->x, ib->y, rt) + ir->dist(eb->x, eb->y, rt);
@@ -2180,7 +2558,8 @@ namespace Cluscious {
      if (regions[b->region]->ncells == 1) return false;
 
      std::unordered_set<Cell*> strands;
-     int nsets = b->neighbor_strands(strands, DESTRAND_MAX, false);
+     int max = (DESTRAND_MAX < regions[b->region]->ncells/2) ? DESTRAND_MAX : (regions[b->region]->ncells/2-1);
+     int nsets = b->neighbor_strands(strands, max, false);
      if (nsets != 1 && strands.size() < DESTRAND_MIN) return false;
      if (is_tabu_strand(strands)) return false;
 
@@ -2209,7 +2588,8 @@ namespace Cluscious {
 
         if (TRADE) trade(rit, obj_radius[omethod]);
 
-        greedy(rit, omethod, tol, 0, RANDOM, r, verbose);
+        float cut = RANDOM ? -0.01 : boost::numeric::bounds<float>::lowest();
+        greedy(rit, omethod, tol, cut, RANDOM, r, verbose);
 
       }
     }
@@ -2219,20 +2599,33 @@ namespace Cluscious {
 
 
 
-  int Universe::merge_strands(Cell* c, int max = 10) {
+  int Universe::merge_strands(Cell* c, float max_frac) {
 
     std::vector<std::unordered_set<Cell*> > graphs;
-    if (c->neighbor_sets(graphs, max, true) == 1) return 0;
+    // cout << "ncells=" << ncells << endl;
+    int nsets = c->neighbor_sets(graphs, ncells, true);
+
+    // cout << "cell " << c->id << " has strands of length :: ";
+    // for (auto ng : graphs) cout << ng.size() << " ";
+    // cout << endl;
+
+    if (nsets == 1) return 0;
 
     int removed = 0;
     for (auto s : graphs) {
-      if (int(s.size()) > max) continue;
+
+      int strand_pop = std::accumulate(s.begin(), s.end(), 0, [](int a, Cell* b) { return a + (b->pop); });
+      if (strand_pop > max_frac * target) continue;
+      // cout << "Removing a strand of size " << s.size() << " from cell " << c->id << endl;
 
       for (auto nc : s) {
 
         c->merge(nc);
-
         cells.erase(std::remove(cells.begin(), cells.end(), nc), cells.end());
+        ncells--;
+
+        // cout << "Removed cell in strand :: " << nc->id << endl;
+
         delete nc;
 
         removed++;
@@ -2245,7 +2638,14 @@ namespace Cluscious {
   }
 
 
-  void Universe::trim_graph() {
+  void Universe::trim_graph(float max_frac) {
+
+    // for (auto c : cells) {
+    //   cout << "BEFORE MERGE  :::::  ";
+    //   cout << "cid=" << c->id << " :: ";
+    //   for (auto n : c->nm) cout << n.first->id << " ";
+    //   cout << endl;
+    // }
 
     int clipped = 0 ;
 
@@ -2256,9 +2656,12 @@ namespace Cluscious {
       if ((*cit)->nm.size() == 1) {
 
         (*cit)->nm.begin()->first->merge(*cit);
+        // cout << "Removed cell " << (*cit)->id << endl;
         delete *cit;
 
         cit = cells.erase(cit);
+        ncells--;
+
         clipped++;
 
       } else ++cit;
@@ -2267,16 +2670,36 @@ namespace Cluscious {
     // int breaker = 0;
     for (int ci = 0; ci < int(cells.size()); ci++) {
 
-      int merged = merge_strands(cells[ci], 10);
+      int merged = merge_strands(cells[ci], max_frac);
 
+      for (auto c : cells) {
+        for (auto n : c->nm) {
+          if (find(cells.begin(), cells.end(), n.first) == cells.end()) {
+            cout << "BROKE DURING MERGE OF " << cells[ci]->id << " :: ";
+            for (auto n : cells[ci]->nm) cout << n.first->id << " ";
+            cout << endl;
+
+            cout << "BROKEN CELL IS ::::: cid=" << c->id << " :: ";
+            for (auto n : c->nm) cout << n.first->id << " ";
+            cout << endl;
+
+            cout << "The clipped cells now include :: ";
+            for (auto cc : clipped_cells()) cout << cc << " ";
+            cout << endl;
+
+            exit(1);
+          }
+        }
+      }
+      
       // backtrack by the max cells we could have lost...
       ci -= merged;
+      if (ci < 0) ci = 0;
 
       // but increment...
       clipped += merged;
-
     }
- 
+
   }
 
 
@@ -2287,7 +2710,14 @@ namespace Cluscious {
   bool pop_compare(Region* r1, Region* r2) { return r1->pop < r2->pop; }
   bool id_compare(Region* r1, Region* r2) { return r1->id < r2->id; }
 
-  int sign(double x) { return (x > 0) - (x < 0); }
+  template <typename T>
+  int sign(T x) { return (x > 0) - (x < 0); }
+
+  template <typename T>
+  T clip(const T& n, T clipval) {
+    clipval = fabs(clipval);
+    return std::max(-clipval, std::min(n, clipval));
+  }
 
 
   bool maxed_or_empty(unsigned int max, std::vector<std::unordered_set<Cell*> >& graphs, 
