@@ -5,7 +5,7 @@ namespace Cluscious {
 
   static std::map<ObjectiveMethod, RadiusType> obj_radius = {{DISTANCE_A, EQUAL_AREA}, {DISTANCE_P, EQUAL_AREA_POP},
                                                              {INERTIA_A, EQUAL_AREA}, {INERTIA_P, EQUAL_AREA_POP}, 
-                                                             {HULL_A, HULL}, {POLSBY, EQUAL_CIRCUMFERENCE},{REOCK, SCC}, 
+                                                             {HULL_A, HULL}, {HULL_P, HULL}, {POLSBY, EQUAL_CIRCUMFERENCE},{REOCK, SCC}, 
                                                              {EHRENBURG, LIC}, {POLSBY_W, EQUAL_CIRCUMFERENCE}, 
                                                              {PATH_FRAC, EQUAL_AREA}, {AXIS_RATIO, EQUAL_AREA}};
 
@@ -13,13 +13,14 @@ namespace Cluscious {
     : region(-1), id(0), pop(0), x(0), y(0), area(0) {}
   Cell::Cell(const Cell &c) 
     : region(-1), id(c.id), pop(c.pop), x(c.x), y(c.y), area(c.area), wm(c.wm),
-      is_univ_edge(c.is_univ_edge), is_split(c.is_split), split_neighbor(c.split_neighbor),
+      edge_perim(c.edge_perim), is_univ_edge(c.is_univ_edge), is_split(c.is_split), split_neighbor(c.split_neighbor),
       pt(c.pt) {} // , poly(c.poly){}
 
   Cell::Cell(int i, int p, double x, double y,
              double a, weight_map wm,
-             bool ue = false, bool split = false)
-    : region(-1), id(i), pop(p), x(x), y(y), area(a), wm(wm), is_univ_edge(ue), is_split(split), split_neighbor(false), pt(x, y) {
+             float ep, bool split = false)
+    : region(-1), id(i), pop(p), x(x), y(y), area(a), wm(wm), edge_perim(ep),
+      is_univ_edge(ep > 1e-3), is_split(split), split_neighbor(false), pt(x, y) {
 
     if (!p) pop = 1; // N.B. that we're setting the minimum population per cell to 1!!
 
@@ -483,24 +484,24 @@ namespace Cluscious {
   }
 
   Region::Region() 
-    : id(0), pop(0), ncells(0), area(0), xctr(0), yctr(0), xpctr(0), ypctr(0), sumw_border(0),
+    : id(0), pop(0), ncells(0), area(1e-6), xctr(0), yctr(0), xpctr(0), ypctr(0), sumw_border(0),
       has_topo(false), eps_scc(10), x_scc(0), y_scc(0), r2_scc(0),
       eps_lic(2), x_lic(0), y_lic(0), r2_lic(std::numeric_limits<double>::infinity()),
-      pcell(0), pd2(0)
+      x_pow(0), y_pow(0), r2_pow(0)
   {}
 
   Region::Region(int rid) 
-    : id(rid), pop(0), ncells(0), area(0), xctr(0), yctr(0), xpctr(0), ypctr(0), sumw_border(0),
+    : id(rid), pop(0), ncells(0), area(1e-6), xctr(0), yctr(0), xpctr(0), ypctr(0), sumw_border(0),
       has_topo(false), eps_scc(10), x_scc(0), y_scc(0), r2_scc(0), 
       eps_lic(2), x_lic(0), y_lic(0), r2_lic(std::numeric_limits<double>::infinity()),
-      pcell(0), pd2(0)
+      x_pow(0), y_pow(0), r2_pow(0)
   {}
 
   Region::Region(int rid, Cell* c) 
-    : id(rid), pop(0), ncells(0), area(0), xctr(c->x), yctr(c->y), xpctr(c->x), ypctr(c->y), sumw_border(0),
+    : id(rid), pop(0), ncells(0), area(1e-6), xctr(c->x), yctr(c->y), xpctr(c->x), ypctr(c->y), sumw_border(0),
       has_topo(false), eps_scc(10), x_scc(0), y_scc(0), r2_scc(0),
       eps_lic(2), x_lic(0), y_lic(0), r2_lic(std::numeric_limits<double>::infinity()),
-      pcell(c), pd2(0)
+      x_pow(0), y_pow(0), r2_pow(0)
   { add_cell(c, true); }
 
 
@@ -523,6 +524,9 @@ namespace Cluscious {
 
       update_scc(c, 0, true); // add cell, do update.
       if (has_topo && node_ring.size()) update_lic(c, 0, true);
+      
+      // not adding, since it's already since it's already in "cells".  don't care about return value; do update axes.
+      update_pca(0, 0, false, true);
     }
 
     area += c->area;
@@ -546,7 +550,11 @@ namespace Cluscious {
     // require check, because otherwise cells can
     // get assigned after all ext. neighbors are,
     // and then never re-visited.
-    if (c->is_univ_edge) int_borders.insert(c);
+    if (c->is_univ_edge) {
+      int_borders.insert(c);
+      sumw_border += c->edge_perim;
+    }
+
     for (auto n : c->nm) {
       if (n.first->region != id) {
         int_borders.insert(c); break;
@@ -587,21 +595,6 @@ namespace Cluscious {
         }
       }
     }
-    
-    // Sanity check.
-    // for (auto b : ext_borders) {
-    //   float total_border = 0;
-    //   for (auto bn : b->nm) {
-    //     if (bn.first->region == id)
-    //       total_border += bn.second;
-    //   }
-    //   if (total_border == 0) {
-    //     DEBUG_ME;
-    //     cout << "cell " << b->id << " is in the external border of Region " << id << " but has no non-zero (ROOK) connection to it." << endl;
-    //     exit(1);
-    //   }
-    // }
-
   }
 
   void Region::remove_cell(Cell *c, bool UPDATE_CTR = true) {
@@ -624,6 +617,7 @@ namespace Cluscious {
       xpctr = (xpctr * pop  - c->x * c->pop )/(pop  - c->pop );
       ypctr = (ypctr * pop  - c->y * c->pop )/(pop  - c->pop );
 
+      update_pca(0, 0, false, true); // Not subtracting; already removed from "cells."
       update_scc(0, c, true); // sub cell, do update.
       if (has_topo && node_ring.size()) update_lic(0, c, true);
     }
@@ -652,6 +646,8 @@ namespace Cluscious {
 
     int_borders.erase(c);
     ext_borders.insert(c);
+
+    if (c->is_univ_edge) sumw_border -= c->edge_perim;
 
     // Iterate over the MOVING cell's neighbors.
     for (auto const& n : c->nm) {
@@ -691,15 +687,31 @@ namespace Cluscious {
     // Sanity check.
     for (auto b : ext_borders) {
       float total_border = 0;
+      float region_border = 0;
+      int nonzero_borders = 0;
       for (auto bn : b->nm) {
+        total_border += bn.second;
+        if (bn.second > 0) nonzero_borders++;
         if (bn.first->region == id)
-          total_border += bn.second;
+          region_border += bn.second;
       }
-      if (total_border == 0) {
-        cout << __FUNCTION__ << "::" << __LINE__ 
-             << " :: cell " << b->id << " is in the external border of Region " << id << " but has no non-zero connection to it." << endl;
-      }
+      // if (region_border == 0 && nonzero_borders > 1) {
+      //   cout << __FUNCTION__ << "::" << __LINE__ 
+      //        << " :: cell " << b->id << " is in the external border of Region " << id << " but has no non-zero connection to it." << endl;
+      // }
     }
+
+    // if (c->is_univ_edge) {
+    //   float sum_border_check = 0;
+    //   for (auto b : int_borders) {
+    //     sum_border_check += b->edge_perim;
+    //     for (auto n : b->nm) if (n.first->region != id) {
+    //       sum_border_check += n.second;
+    //     }
+    //   }
+
+    //   cout << "sum_border_check=" << sum_border_check << " v. sumw_border=" << sumw_border << endl;
+    // }
 
   }
 
@@ -718,7 +730,7 @@ namespace Cluscious {
       case RadiusType::SCC:                  return std::make_pair(std::make_pair(x_scc, y_scc), sqrt(r2_scc)); 
       case RadiusType::LIC:                  return std::make_pair(std::make_pair(x_lic, y_lic), sqrt(r2_lic));  
       case RadiusType::HULL:                 return std::make_pair(std::make_pair(ch_x, ch_y)  , sqrt(ch_area/M_PI));
-      case RadiusType::POWER:                return std::make_pair(std::make_pair(pcell->x, pcell->y), sqrt(pd2));
+      case RadiusType::POWER:                return std::make_pair(std::make_pair(x_pow, y_pow), sqrt(r2_pow));
       case RadiusType::EQUAL_AREA:
       default:                               return std::make_pair(std::make_pair(xctr,  yctr),  sqrt(area/M_PI));   
     }
@@ -1179,13 +1191,19 @@ namespace Cluscious {
 
   std::pair<float, float> Region::update_pca(Cell* add, Cell* sub, bool vec, bool UPDATE) {
 
-    arma::mat M = arma::zeros<arma::mat>(ncells,2);
+    int mncells = ncells + (add ? 1 : 0) - (sub ? 1 : 0);
+    arma::mat M = arma::zeros<arma::mat>(mncells,2);
 
     int ci = 0;
     for (auto& c : cells) {
+      if (c == sub) continue;
       M(ci,0) = c->x;
       M(ci,1) = c->y;
       ci++;
+    }
+    if (add) {
+      M(ci,0) = add->x;
+      M(ci,1) = add->y;
     }
 
     arma::mat coeff,  score;
@@ -1605,6 +1623,7 @@ namespace Cluscious {
 
         Cell* b_min_c = 0; double b_min_d2 = std::numeric_limits<double>::infinity();
         for (auto const& b : r->ext_borders) {
+
           if (b->region >= 0) continue;
 
           if (popgrow) d2 = b->d2(r->xpctr, r->ypctr);
@@ -1642,7 +1661,10 @@ namespace Cluscious {
     for (auto const& rA : regions) {
     
       bool moved = true;
+      int iter = 0;
+      int ntransfers = 0;
       while (moved) {
+        iter++;
         moved = false;
 
         for (auto const& b : rA->ext_borders) {
@@ -1650,18 +1672,19 @@ namespace Cluscious {
           int rBi = b->region; assert(rBi >= 0);
           Region* rB = regions[rBi];
 
+          if (rA->d2(b, RadiusType::POWER) - rA->r2_pow >
+              rB->d2(b, RadiusType::POWER) - rB->r2_pow) continue;
+
           // We can remove up to five in strands, 
           // so we need to start with a buffer.
           // Having a single cell in a region causes problems.
           if (rB->ncells < 10) continue; 
 
-          if (rA->pcell->d2(b) - rA->pd2 >
-              rB->pcell->d2(b) - rB->pd2) continue;
-
           std::unordered_set<Cell*> strands;
           int nsets = b->neighbor_strands(strands, 5, false);
           if (nsets != 1 && !strands.size()) continue;
           
+          if (strands.size()) ntransfers++;
           transfer_strand(strands);
           regions[b->region]->remove_cell(b);
           rA->add_cell(b);
@@ -1672,127 +1695,123 @@ namespace Cluscious {
     }
   }
 
-  void Universe::center_power_cells() {
-    
-    // Find the cell in the region closest 
-    // to the region's barycenter.
-    for (const auto& r : regions) {
-      float min_d2 = std::numeric_limits<float>::infinity();
-      for (auto c : r->cells) {
-        if (r->d2(c) > min_d2) continue;
-        r->pcell = c; min_d2 = r->d2(c);
-      }
-    }
-  
-    // Now set the initial d2 distance as the minimum
-    // intradistrict-center distance.
-    for (const auto& rA : regions) {
-      rA->pd2 = std::numeric_limits<float>::infinity();
-      for (const auto& rB : regions)
-        if (rA != rB && rA->pcell->d2(rB->pcell) < rA->pd2)
-          rA->pd2 = rA->pcell->d2(rB->pcell);
-    }
+  // void Universe::center_power_cells() {
+  //   
+  //   // Find the cell in the region closest 
+  //   // to the region's barycenter.
+  //   for (const auto& r : regions) {
+  //     float min_d2 = std::numeric_limits<float>::infinity();
+  //     for (auto c : r->cells) {
+  //       if (r->d2(c) > min_d2) continue;
+  //       r->pcell = c; min_d2 = r->d2(c);
+  //     }
+  //   }
+  // 
+  //   // Now set the initial d2 distance as the minimum
+  //   // intradistrict-center distance.
+  //   for (const auto& rA : regions) {
+  //     rA->pd2 = std::numeric_limits<float>::infinity();
+  //     for (const auto& rB : regions)
+  //       if (rA != rB && rA->pcell->d2(rB->pcell) < rA->pd2)
+  //         rA->pd2 = rA->pcell->d2(rB->pcell);
+  //   }
 
-  }
+  // }
 
 
-  void Universe::iterate_power(float ptol, int niter, int reset_center = false) {
+  void Universe::iterate_power(float ptol, int niter, int reset_center) {
+
+    float best_tol = 1.;
+    std::map<int, int> best_soln;
 
     for (auto r : regions) r->has_topo = false;
 
-    if (reset_center) center_power_cells();
+    if (reset_center) {
+      for (auto r : regions) {
+        r->x_pow  = r->xctr;
+        r->y_pow  = r->yctr;
 
-    for (int i = 0; i < niter; i++) {
-
-      if (!(i % 100)) {
-        float dtol = 0.;
-        for (auto r : regions)
-          if (fabs(r->pop/target - 1) > dtol)
-            dtol = fabs(r->pop/target - 1);
-
-        if (dtol < ptol) {
-          cout << "Power diagram met tolerance -- returning." << endl;
-          break;
-        } else cout << "Iteration " << i << ", tolerance now " << dtol << endl;
+        r->r2_pow = std::numeric_limits<float>::infinity();
+        for (const auto& other : regions)
+          if (r != other && r->d2(other) < r->r2_pow)
+            r->r2_pow = r->d2(other);
+        
+        // cout << __LINE__ << " :: Resetting region " << r->id << " :: " << r->x_pow << " " << r->y_pow << " " << sqrt(r->r2_pow) << endl;
       }
+    }
+
+    for (int i = 0; i < niter && best_tol > ptol; i++) {
+
+      if (!(i % 100)) cout << "Iteration " << i << ", tolerance now " << best_tol << endl;
 
       voronoi_classify();
 
       for (const auto& r : regions) {
         float dpop = r->pop / target - 1;
-        r->pd2 -= clip(dpop * fabs(dpop), 0.01) * r->area;
-        // if (r->pd2 < 0) r->pd2 = 0;
+        r->r2_pow -= clip(dpop * fabs(dpop), 0.01) * r->area;
       }
 
       // Zapping -- 
-      std::vector< std::pair<float, float> > zaps(nregions, std::pair<float, float>(0, 0));
-      for (size_t rAi = 0; rAi < nregions; rAi++) {
-        Region* rA = regions[rAi];
-        for (size_t rBi = rAi+1; rBi < nregions; rBi++) {
-          Region* rB = regions[rBi];
+      // std::vector<float> zap_x(nregions, 0);
+      // std::vector<float> zap_y(nregions, 0);
+      // for (size_t rAi = 0; rAi < nregions; rAi++) {
+      //   Region* rA = regions[rAi];
+      //   for (size_t rBi = rAi+1; rBi < nregions; rBi++) {
+      //     Region* rB = regions[rBi];
 
-          float ab_d2 = rA->pcell->d2(rB->pcell);
-          if (ab_d2 > rA->pd2 && ab_d2 > rB->pd2)
-            continue;
+      //     float ab_d2 = rA->d2(rB, RadiusType::POWER);
+      //     // cout << rA->id << " to " << rB->id << " ab_d2=" << ab_d2 << endl;
+      //     if (ab_d2 > rA->r2_pow && ab_d2 > rB->r2_pow)
+      //       continue;
 
-          float aR = 1. * rA->pop / (rA->pop + rB->pop);
-          float bR = 1. * rB->pop / (rA->pop + rB->pop);
-          float dx = rA->pcell->x - rB->pcell->x;
-          float dy = rA->pcell->y - rB->pcell->y;
+      //     float aR = 1. * rA->pop / (rA->pop + rB->pop);
+      //     float bR = 1. * rB->pop / (rA->pop + rB->pop);
+      //     float dx = rA->x_pow - rB->x_pow;
+      //     float dy = rA->y_pow - rB->y_pow;
 
-          zaps[rAi].first  -= dx * aR;
-          zaps[rAi].second -= dy * aR;
-          zaps[rBi].first  += dx * bR;
-          zaps[rBi].second += dy * bR;
-        }
-      }
+      //     zap_x[rAi] -= dx * aR; zap_y[rAi] -= dy * aR;
+      //     zap_x[rBi] += dx * bR; zap_y[rBi] += dy * bR;
+      //   }
+      // }
 
-      for (size_t ri = 0; ri < nregions; ri++) {
-        if (zaps[ri].first == 0) continue;
+      // for (size_t ri = 0; ri < nregions; ri++) {
+      //   if (zap_x[ri] == 0) continue;
 
-        Region* reg = regions[ri];
-        float xm = reg->pcell->x - zaps[ri].first;
-        float ym = reg->pcell->y - zaps[ri].second;
-
-        float min_d2 = std::numeric_limits<float>::infinity();
-        for (auto n : reg->pcell->nm) {
-
-          bool taken = false;
-          for (auto r : regions) 
-            if (n.first == r->pcell)
-              taken = true;
-          if (taken) continue;
-
-          if (min_d2 > n.first->d2(xm, ym)) {
-            min_d2 = n.first->d2(xm, ym);
-            reg->pcell = n.first;
-          }
-        }
-      }
+      //   Region* reg = regions[ri];
+      //   cout << "Would have zapped rid=" << reg->id << " dx=" << 0.02 * zap_x[ri] << endl;
+      //   reg->x_pow -= 0.02 * zap_x[ri];
+      //   reg->y_pow -= 0.02 * zap_y[ri];
+      // }
       
       // No region can have a d2 larger than 
       // its smallest intra-region distance.
       for (const auto& rA : regions) {
         for (const auto& rB : regions)
-          if (rA != rB && rA->pcell->d2(rB->pcell) < rA->pd2)
-            rA->pd2 = rA->pcell->d2(rB->pcell);
+          if (rA != rB && rA->d2(rB, RadiusType::POWER) < rA->r2_pow)
+            rA->r2_pow = rA->d2(rB, RadiusType::POWER);
       }
 
-      // Every 10 moves, you can take
-      // a single step towards the barycenter.
-      if (i % 20 == 0) {
-        for (const auto& r : regions) {
-          float min_d2 = r->d2(r->pcell);
-          for (auto n : r->pcell->nm) {
-            if (r->d2(n.first) < min_d2) {
-              min_d2 = r->d2(n.first); 
-              r->pcell = n.first;
-            }
-          }
-        }
+      // Move slowly towards the geographic center.
+      for (const auto& r : regions) {
+        float mv_rate = pow(10., -0.5 - r->pop/target);
+        r->x_pow += mv_rate * (r->xctr - r->x_pow);
+        r->y_pow += mv_rate * (r->yctr - r->y_pow);
       }
 
+
+      float dtol = 0.;
+      for (auto r : regions) 
+        if (fabs(r->pop/target - 1) > dtol)
+          dtol = fabs(r->pop/target - 1);
+
+      if (dtol < best_tol) {
+        best_tol = dtol;
+        best_soln = cell_region_map();
+        cout << "Iteration " << i << ", tolerance now " << best_tol << endl;
+      }
     }
+
+    load_partition(best_soln);
 
     if (loaded_topo) {
       for (auto r : regions) {
@@ -1821,7 +1840,9 @@ namespace Cluscious {
         std::shuffle(ebv.begin(), ebv.end(), mersenne);
 
         for (auto const& b : ebv) {
-          if ((*b)->region >= 0) continue;
+          if ( (*b)->region >= 0 ||
+              !(*b)->neighbors_connected()) continue;
+
           r->add_cell(*b);
           growth = true;
           break;
@@ -1845,6 +1866,9 @@ namespace Cluscious {
 
 
   void Universe::load_partition(std::map<int, int> reg_map) {
+
+    for (auto r : regions) delete r;
+    regions.clear();
 
     for (size_t ri = 0; ri < nregions; ri++) 
       regions.push_back(new Region(ri));
@@ -1870,7 +1894,23 @@ namespace Cluscious {
 
   }
 
-  bool Universe::split_region(int rA) {
+  bool Universe::merge_regions(int rA, int rB) {
+
+    if (rA < 0 || rA >= int(regions.size()) || 
+        rB < 0 || rB >= int(regions.size()))
+      return false;
+
+    for (auto cB : regions[rB]->cells)
+      regions[rA]->add_cell(cB);
+
+    delete regions[rB];
+    regions.pop_back();
+
+    return true;
+
+  }
+
+  bool Universe::split_region(int rA, float angle, bool connect) {
 
     int rB = -1;
     if (rA < 0 || rA >= int(regions.size())) return false;
@@ -1878,55 +1918,76 @@ namespace Cluscious {
     int seats = lrint(regions[rA]->pop / target);
     if (seats <= 1) return false;
 
-    // int sA = seats/2;
-    int sB = seats - seats/2;
-    // int nA = 1.*regions[rA]->pop * sA / seats;
+    int sA = seats/2;
+    int sB = seats - sA;
     int nB = 1.*regions[rA]->pop * sB / seats;
 
-    std::pair<float, float> pca0 = regions[rA]->update_pca(0, 0, true, true); // get vector and update values
-
-    float x0 = regions[rA]->xpctr, y0 = regions[rA]->ypctr;
+    std::pair<float, float> nvec;
+    if (angle < 0) nvec = regions[rA]->update_pca(0, 0, true, true); // get vector and update values
+    else nvec = std::make_pair(cos(angle * 2 * M_PI), sin(angle * 2 * M_PI));
 
     Cell* opt_cell = 0;
-    float b_dot_d, max_b_dot_d = 0;
+    float max_b_dot_d = boost::numeric::bounds<float>::lowest();
     for (const auto& ib : regions[rA]->int_borders) {
-      b_dot_d = pca0.first * (ib->x - x0) + pca0.second * (ib->y - y0);
+
+      float b_dot_d = nvec.first * ib->x + nvec.second * ib->y;
+
       if (b_dot_d < max_b_dot_d) continue;
+
       max_b_dot_d = b_dot_d;
       opt_cell = ib;
-      // cout << "ib id=" << ib->id << " ib.d=" << b_dot_d << endl;
     }
 
     if (opt_cell) {
-      // cout << "rA=" << rA << "  opt id=" << opt_cell->id << " ib.d=" << max_b_dot_d << endl;
       regions[rA]->remove_cell(opt_cell);
       regions.push_back(new Region(regions.size(), opt_cell));
       rB = regions.size()-1;
+    } else {
+      cout << "Major problem -- no opt cell found!!!" << endl;
+      return false;
     }
 
-    while (regions[rB]->pop < nB) {
+    while (regions[rB]->pop < nB && opt_cell) {
 
+      opt_cell = 0;
       max_b_dot_d = boost::numeric::bounds<float>::lowest();
+
       std::unordered_set<Cell*> opt_strands;
       for (const auto& ib : regions[rA]->int_borders) {
+
         if (!ib->touches_region(rB)) continue;
-        b_dot_d = pca0.first * (ib->x - x0) + pca0.second * (ib->y - y0);
+
+        float b_dot_d = nvec.first * ib->x + nvec.second * ib->y;
         if (b_dot_d < max_b_dot_d) continue;
 
         std::unordered_set<Cell*> strands;
-        int nsets = ib->neighbor_strands(strands, 5, false);
-        if (nsets != 1 && !strands.size()) continue;
+        if (connect) {
+          int nsets = ib->neighbor_strands(strands, 25, false);
+          if (nsets != 1 && !strands.size()) continue;
+        }
 
-        opt_strands = strands;
         opt_cell = ib;
+        opt_strands = strands;
         max_b_dot_d = b_dot_d;
       }
 
-      transfer_strand(opt_strands);
-      regions[rA]->remove_cell(opt_cell);
-      regions[rB]->add_cell(opt_cell);
+      if (opt_cell) {
+        if (opt_strands.size()) cout << "Transferring a strand of size = " << opt_strands.size() << endl;
+        transfer_strand(opt_strands);
+        regions[rA]->remove_cell(opt_cell);
+        regions[rB]->add_cell(opt_cell);
+      } else {
+        cout << "Major problem -- no opt cell found!!!" << endl;
+        cout << "ra nIB=" << regions[rA]->int_borders.size() << endl;
+        merge_regions(rA, rB);
+        return false;
+      }
 
-      // cout << "maxed ib id=" << opt_cell->id << " ib.d=" << max_b_dot_d << " :: pop/target=" << regions[rB]->pop/target << endl;
+    }
+
+    if (fabs(regions[rA]->pop/sA - regions[rB]->pop/sB) > 0.10 * target) {
+      merge_regions(rA, rB);
+      return false;
     }
 
     return true;
@@ -1938,8 +1999,38 @@ namespace Cluscious {
     bool new_splits = true;
     while (new_splits) {
       new_splits = false;
-      for (unsigned long r = 0; r < nregions; r++) 
-        new_splits |= split_region(r);
+      for (unsigned long r = 0; r < regions.size(); r++) {
+
+        if (lrint(regions[r]->pop / target) <= 1) continue;
+
+        float best_angle = 0;
+        float best_perim = std::numeric_limits<double>::infinity();
+
+        float perim_before = regions[r]->sumw_border;
+        cout << "Splitting region " << r << " :: ";
+        for (float a = 0.0; a < 1; a += 0.01) {
+          if (split_region(r, a, false)) {
+            float perim_after = regions[r]->sumw_border + regions.back()->sumw_border;
+            if (best_perim > perim_after - perim_before) {
+              best_perim = perim_after - perim_before;
+              best_angle = a;
+            }
+            merge_regions(r, regions.back()->id);
+            cout << " a=" << a << std::flush;
+          } 
+        }
+
+        cout << " :: best_angle=" << best_angle << endl;
+
+        new_splits |= split_region(r, best_angle);
+
+        float area_check = 0;
+        for (auto reg : regions) {
+          cout << "r=" << reg->id << " pop/target=" << reg->pop/target << " area=" << reg->area << " perim=" << reg->sumw_border << endl;
+          area_check += reg->area;
+        }
+        cout << "Total area is " << area_check << endl;
+      }
     }
 
     if (loaded_topo) {
@@ -2019,26 +2110,32 @@ namespace Cluscious {
   }
 
 
-  double Region::obj(ObjectiveMethod omethod, Cell* add = 0, Cell* sub = 0, bool verbose = false) {
+  double Region::obj(ObjectiveMethod omethod, Cell* add, Cell* sub, bool verbose) {
 
-    if (verbose) cout << "In objective fn for region " << id << ", to ";
-    if (verbose && add) cout << "add cid" << add->id << "(r" << add->region << ")";
-    if (verbose && sub) cout << "sub cid" << sub->id << "(r" << sub->region << ")";
-    if (verbose) cout << endl;
+    // if (verbose) cout << "In objective fn for region " << id << ", to ";
+    // if (verbose && add) cout << "add cid" << add->id << "(r" << add->region << ")";
+    // if (verbose && sub) cout << "sub cid" << sub->id << "(r" << sub->region << ")";
+    // if (verbose) cout << endl;
 
     switch (omethod) {
 
-      case ObjectiveMethod::DISTANCE_A: return obj_distance  (add, sub, xctr,  yctr ); 
-      case ObjectiveMethod::DISTANCE_P: return obj_distance  (add, sub, xpctr, ypctr); 
-      case ObjectiveMethod::INERTIA_A:  return obj_inertia_a (add, sub, verbose); 
-      case ObjectiveMethod::INERTIA_P:  return obj_inertia_p (add, sub, verbose); 
-      case ObjectiveMethod::REOCK:      return obj_reock     (add, sub, verbose);
-      case ObjectiveMethod::HULL_A:     return obj_hull      (add, sub, verbose);
-      case ObjectiveMethod::POLSBY:     return obj_polsby    (add, sub, verbose);
-      case ObjectiveMethod::PATH_FRAC:  return obj_path_frac (add, sub, verbose);
-      case ObjectiveMethod::EHRENBURG:  return obj_ehrenburg (add, sub, verbose);
-      case ObjectiveMethod::AXIS_RATIO: return obj_axis_ratio(add, sub, verbose);
-      case ObjectiveMethod::POLSBY_W:   // weight by population -- units... ???
+      case ObjectiveMethod::DISTANCE_A:  return obj_distance   (add, sub, xctr,  yctr ); 
+      case ObjectiveMethod::DISTANCE_P:  return obj_distance   (add, sub, xpctr, ypctr); 
+      case ObjectiveMethod::INERTIA_A:   return obj_inertia_a  (add, sub, verbose); 
+      case ObjectiveMethod::INERTIA_P:   return obj_inertia_p  (add, sub, verbose); 
+      case ObjectiveMethod::REOCK:       return obj_reock      (add, sub, verbose);
+      case ObjectiveMethod::HULL_A:      return obj_hull       (add, sub, verbose);
+      case ObjectiveMethod::HULL_P:      return obj_hull_p     (add, sub, verbose);
+      case ObjectiveMethod::POLSBY:      return obj_polsby     (add, sub, verbose);
+      case ObjectiveMethod::PATH_FRAC:   return obj_path_frac  (add, sub, verbose);
+      case ObjectiveMethod::EHRENBURG:   return obj_ehrenburg  (add, sub, verbose);
+      case ObjectiveMethod::AXIS_RATIO:  return obj_axis_ratio (add, sub, verbose);
+      case ObjectiveMethod::MEAN_RADIUS: return obj_mean_radius(add, sub, verbose);
+      case ObjectiveMethod::DYN_RADIUS:  return obj_dyn_radius (add, sub, verbose);
+      case ObjectiveMethod::HARM_RADIUS: return obj_harm_radius(add, sub, verbose);
+      case ObjectiveMethod::ROHRBACH:    return obj_rohrbach   (add, sub, verbose);
+      case ObjectiveMethod::EXCHANGE:    return obj_exchange   (add, sub, verbose);
+      case ObjectiveMethod::POLSBY_W:    // weight by population -- units... ???
 
       default:
         cout << "Not yet implemented." << endl;
@@ -2051,31 +2148,22 @@ namespace Cluscious {
 
     // This is a borderline normalization for area-based,
     // but not appropriate for the population-weighted version.
-    float r = area / M_PI;
+    float r2 = area / M_PI;
 
-    if (add) return   r / add->d2(xx, yy);
-    if (sub) return - r / sub->d2(xx, yy);
+    if (add) return   r2 / add->d2(xx, yy);
+    if (sub) return - r2 / sub->d2(xx, yy);
 
     return 0;
 
   }
 
-  double Region::obj_inertia_a(Cell* add = 0, Cell* sub = 0, bool verbose = false) {
+  double Region::obj_inertia_a(Cell* add, Cell* sub, bool verbose) {
     
     // Keep these variables for comparison.
     float xmod(xctr * area), ymod(yctr * area), amod(area);
 
-    if (add) {
-      xmod += add->area * add->x;
-      ymod += add->area * add->y;
-      amod += add->area;
-    }
-
-    if (sub) {
-      xmod -= sub->area * sub->x;
-      ymod -= sub->area * sub->y;
-      amod -= sub->area;
-    }
+    if (add) { xmod += add->area * add->x; ymod += add->area * add->y; amod += add->area; }
+    if (sub) { xmod -= sub->area * sub->x; ymod -= sub->area * sub->y; amod -= sub->area; }
 
     xmod /= amod; ymod /= amod;
 
@@ -2112,7 +2200,7 @@ namespace Cluscious {
   }
 
 
-  double Region::obj_inertia_p(Cell* add = 0, Cell* sub = 0, bool verbose = false) {
+  double Region::obj_inertia_p(Cell* add, Cell* sub, bool verbose) {
     
     // Keep these variables for comparison.
     int pmod(pop); 
@@ -2166,7 +2254,7 @@ namespace Cluscious {
   }
 
 
-  double Region::obj_reock(Cell* add = 0, Cell* sub = 0, bool verbose = false) {
+  double Region::obj_reock(Cell* add, Cell* sub, bool verbose) {
 
     float r2_mod = update_scc(add, sub);
     float amod   = area;
@@ -2187,7 +2275,7 @@ namespace Cluscious {
 
   }
 
-  double Region::obj_ehrenburg(Cell* add = 0, Cell* sub = 0, bool verbose = false) {
+  double Region::obj_ehrenburg(Cell* add, Cell* sub, bool verbose) {
 
     if ((add && !add->neighbors_connected()) ||
         (sub && !sub->neighbors_connected())) {
@@ -2214,7 +2302,7 @@ namespace Cluscious {
   }
 
 
-  double Region::obj_hull(Cell* add = 0, Cell* sub = 0, bool verbose = false) {
+  double Region::obj_hull(Cell* add, Cell* sub, bool verbose) {
 
     double hull_nom = area / ch_area;
 
@@ -2253,11 +2341,102 @@ namespace Cluscious {
 
   }
 
+
+  double Region::obj_hull_p(Cell* add, Cell* sub, bool verbose) {
+
+
+    float dist_pop = pop;
+    float hull_pop = pop;
+
+    float dist_pop_mod = pop;
+    if (add) dist_pop_mod += add->pop;
+    if (sub) dist_pop_mod -= sub->pop;
+    float hull_pop_mod = dist_pop_mod;
+
+    // Just rebuild the point collection.
+    bg_mpt mpt_mod = mpt;
+    for (auto ib : int_borders)
+      if (ib != sub) bgeo::append(mpt_mod, ib->pt);
+    if (add) bgeo::append(mpt_mod, add->pt);
+
+    bg_poly ch_poly_mod;
+    bgeo::convex_hull(mpt_mod, ch_poly_mod);
+
+    if (add && !sub && bgeo::area(ch_poly_mod) < bgeo::area(ch_poly))
+      cout << "ADDED  SHOULD BE LARGER  :  mod=" << bgeo::area(ch_poly_mod) << " mod=" << bgeo::area(ch_poly) << endl;
+
+    if (sub && !add && bgeo::area(ch_poly_mod) > bgeo::area(ch_poly))
+      cout << "SUBBED SHOULD BE SMALLER :  mod=" << bgeo::area(ch_poly_mod) << " nom=" << bgeo::area(ch_poly) << endl;
+
+    // We're only going to look at cells on the border
+    std::unordered_set<Cell*> nom_to_add, mod_to_add;
+    for (auto const& c : ext_borders) {
+      if (c != add) nom_to_add.insert(c);
+      mod_to_add.insert(c);
+    }
+    if (sub) mod_to_add.insert(sub);
+
+    std::unordered_set<Cell*> nom_added, mod_added;
+    if (add) mod_added.insert(add);
+
+    int round = 0;
+    std::unordered_set<Cell*> nom_next,  mod_next;
+    while (!nom_to_add.empty() || !mod_to_add.empty()) {
+      round++;
+
+      // Loop over the nominal borders, expanding them out.
+      for (auto c : nom_to_add) {
+        if (bgeo::covered_by(c->pt, ch_poly)) {
+          hull_pop += c->pop; // add it to the hull population.
+          nom_added.insert(c);
+          for (auto nm : c->nm) { // look at new foreign neighbors.
+            if (nm.first->region != id && 
+                nom_added.find(nm.first) == nom_added.end()) {
+              nom_next.insert(nm.first);
+            }
+          }
+        }
+      }
+      nom_to_add.clear();
+      nom_to_add.insert(nom_next.begin(), nom_next.end());
+      nom_next.clear();
+
+      // Verbatim for the mod variables.
+      for (auto c : mod_to_add) {
+        if (bgeo::covered_by(c->pt, ch_poly_mod)) {
+          hull_pop_mod += c->pop; // add it to the hull population.
+          mod_added.insert(c);
+          for (auto nm : c->nm) { // look at new foreign neighbors.
+            if (nm.first->region != id && 
+                mod_added.find(nm.first) == mod_added.end()) {
+              mod_next.insert(nm.first);
+            }
+          }
+        }
+      }
+      mod_to_add.clear();
+      mod_to_add.insert(mod_next.begin(), mod_next.end());
+      mod_next.clear();
+    }
+
+
+    double hull_nom = dist_pop / hull_pop;
+    double hull_mod = dist_pop_mod / hull_pop_mod;
+
+    if (verbose) {
+      if (add) cout << "ADDED   :: nom=" << std::setprecision(5) << hull_nom << "=" << dist_pop << "/" << hull_pop << "  mod=" << hull_mod << "=" << dist_pop_mod << "/" << hull_pop_mod << endl; 
+      if (sub) cout << "SUBB'ED :: nom=" << std::setprecision(5) << hull_nom << "=" << dist_pop << "/" << hull_pop << "  mod=" << hull_mod << "=" << dist_pop_mod << "/" << hull_pop_mod << endl;
+    }
+
+    return hull_mod - hull_nom;
+
+  }
+
   double Region::obj_path_frac(Cell* add, Cell* sub, bool verbose) {
 
     if (verbose) cout << "In obj_path_frac..." << endl;
 
-    // Yes, this is necessary....
+    // Yes, longs are necessary....
     long long num_nom = 0, den_nom= 0;
     long long num_mod = 0, den_mod= 0;
 
@@ -2289,17 +2468,14 @@ namespace Cluscious {
       int end_id = dest->id;
       for (auto crawler : cells) {
 
-        if (dest->id < crawler->id) continue;
+        if (dest->id < crawler->id) continue; // symmetric.
 
         nom_contained = true;
         mod_contained = (sub != crawler);
 
         int pop_prod = (dest->pop) * (crawler->pop);
-        // cout << __LINE__ << " :: dest_pop=" << dest->pop << " crawler_pop=" << crawler->pop << endl;
-        // cout << __LINE__ << " :: " << pop_prod << endl;
 
         den_nom += pop_prod;
-        // cout << __LINE__ << " " << den_nom << " + " << pop_prod << " = " << den_mod + pop_prod << endl;
         if (mod_contained) den_mod += pop_prod;
 
         while (crawler->id != end_id && 
@@ -2327,17 +2503,18 @@ namespace Cluscious {
 
   }
 
-  double Region::obj_polsby(Cell* add = 0, Cell* sub = 0, bool verbose = false) {
+  double Region::obj_polsby(Cell* add, Cell* sub, bool verbose) {
 
-    double polsby_nom = 4 * M_PI * area / sumw_border / sumw_border; // 4*pi*A/P^2
+    float polsby_nom = 4 * M_PI * area / sumw_border / sumw_border; // 4*pi*A/P^2
 
-    double area_mod(area), perim_mod(sumw_border);
+    float area_mod(area), perim_mod(sumw_border);
 
     // Iterate over the MOVING cell's neighbors.
     // If we're adding this cell, outside neighbors 
     // make the border longer
     if (add) { 
       area_mod += add->area;
+      if (add->is_univ_edge) perim_mod += add->edge_perim;
       for (auto const& n : add->nm) {
         if (n.first->region != id) perim_mod += n.second;
         else                       perim_mod -= n.second;
@@ -2347,6 +2524,7 @@ namespace Cluscious {
     // while it's the inverse for subtracting.
     if (sub) {
       area_mod -= sub->area;
+      if (sub->is_univ_edge) perim_mod -= sub->edge_perim;
       for (auto const& n : sub->nm) {
         if (n.first->region != id) perim_mod -= n.second;
         else                       perim_mod += n.second;
@@ -2365,12 +2543,244 @@ namespace Cluscious {
 
   }
 
-  double Region::obj_axis_ratio(Cell* add, Cell* sub, bool verbose) {
+  double Region::obj_axis_ratio (Cell* add, Cell* sub, bool verbose) {
 
-    return 0;
+    std::pair<float, float> coefs = update_pca(add, sub, false, false);
+    return coefs.second/coefs.first - pca1/pca0;
 
   }
 
+  double Region::obj_mean_radius(Cell* add, Cell* sub, bool verbose) {
+
+    // Keep these variables for comparison.
+    float xmod(xctr * area), ymod(yctr * area), amod(area);
+
+    if (add) { xmod += add->area * add->x; ymod += add->area * add->y; amod += add->area; }
+    if (sub) { xmod -= sub->area * sub->x; ymod -= sub->area * sub->y; amod -= sub->area; }
+
+    xmod /= amod; ymod /= amod;
+
+    float onom = 0, omod = 0;
+    for (auto c : cells) {
+      onom += c->area * c->dist(xctr, yctr);
+      omod += c->area * c->dist(xmod, ymod);
+    }
+
+    if (add) omod += add->area * add->dist(xmod, ymod);
+    if (sub) omod -= sub->area * sub->dist(xmod, ymod);
+
+    onom = (2 * sqrt(area/M_PI) / 3) / (onom / area);
+    omod = (2 * sqrt(amod/M_PI) / 3) / (omod / amod);
+
+    if (verbose) {
+      cout << " >> NOM  (x, y)=(" << xctr << ", " << yctr << ")    onom=" << onom << ",\n"
+           << " >> MOD  (x, y)=(" << xmod << ", " << ymod << ")    omod=" << omod << endl;
+    }
+
+    return omod - onom;
+
+  }
+
+  double Region::obj_dyn_radius (Cell* add, Cell* sub, bool verbose) { 
+
+    // Keep these variables for comparison.
+    float xmod(xctr * area), ymod(yctr * area), amod(area);
+
+    if (add) { xmod += add->area * add->x; ymod += add->area * add->y; amod += add->area; }
+    if (sub) { xmod -= sub->area * sub->x; ymod -= sub->area * sub->y; amod -= sub->area; }
+
+    xmod /= amod; ymod /= amod;
+
+    float onom = 0, omod = 0;
+    for (auto c : cells) {
+      onom += c->area * c->d2(xctr, yctr);
+      omod += c->area * c->d2(xmod, ymod);
+    }
+
+    if (add) omod += add->area * add->d2(xmod, ymod);
+    if (sub) omod -= sub->area * sub->d2(xmod, ymod);
+
+    onom = sqrt((area/(2 * M_PI)) / (onom/area));
+    omod = sqrt((amod/(2 * M_PI)) / (omod/amod));
+
+    if (verbose) {
+      cout << " >> NOM  (x, y)=(" << xctr << ", " << yctr << ")    onom=" << onom << ",\n"
+           << " >> MOD  (x, y)=(" << xmod << ", " << ymod << ")    omod=" << omod << endl;
+    }
+
+    return omod - onom;
+
+  }
+
+
+
+  double Region::obj_harm_radius(Cell* add, Cell* sub, bool verbose) {
+    
+    // Keep these variables for comparison.
+    float xmod(xctr * area), ymod(yctr * area), amod(area);
+
+    if (add) { xmod += add->area * add->x; ymod += add->area * add->y; amod += add->area; }
+    if (sub) { xmod -= sub->area * sub->x; ymod -= sub->area * sub->y; amod -= sub->area; }
+
+    xmod /= amod; ymod /= amod;
+
+    float onom = 0, omod = 0;
+    for (auto c : cells) {
+      onom += c->area / c->dist(xctr, yctr);
+      omod += c->area / c->dist(xmod, ymod);
+    }
+
+    if (add) omod += add->area / add->dist(xmod, ymod);
+    if (sub) omod -= sub->area / sub->dist(xmod, ymod);
+
+    onom = sqrt(area/(4 * M_PI)) / (area/onom);
+    omod = sqrt(amod/(4 * M_PI)) / (amod/omod);
+
+    if (verbose) {
+      cout << " >> NOM  (x, y)=(" << xctr << ", " << yctr << ")    onom=" << onom << ",\n"
+           << " >> MOD "
+           << " (" << (add ? "A" : "") << (sub ? "S" : "") << ")"
+           << "(x, y)=(" << xmod << ", " << ymod << ")    omod=" << omod << endl;
+    }
+
+    return omod - onom;
+  
+  }
+
+  double Region::obj_rohrbach(Cell* add, Cell* sub, bool verbose) { 
+
+    // Keep these variables for comparison.
+    float xmod(xctr * area), ymod(yctr * area), amod(area);
+
+    if (add) { xmod += add->area * add->x; ymod += add->area * add->y; amod += add->area; }
+    if (sub) { xmod -= sub->area * sub->x; ymod -= sub->area * sub->y; amod -= sub->area; }
+
+    xmod /= amod; ymod /= amod;
+
+    // Make a modified copy of the internal border.
+    std::unordered_set<Cell*> ib_mod = int_borders;
+
+    if (add) {
+      if (add->is_univ_edge) ib_mod.insert(add);
+
+      // For logic see add_cell_int_ext_neighbors
+      for (auto const& n : add->nm) {
+        if (n.first->region == id) {
+          bool indep_connections = false;
+          for (auto nn : n.first->nm) {
+            if (nn.first->region != id) {
+              indep_connections = true;
+              break;
+            }
+          }
+          if (!indep_connections && !n.first->is_univ_edge) {
+            ib_mod.erase(n.first);
+          }
+        }
+      }
+    }
+
+    if (sub) {
+      if (sub->is_univ_edge) ib_mod.erase(sub);
+
+      // Again, logic from remove_cell_int_ext_neighbors
+      for (auto const& n : sub->nm) {
+        if (n.first->region == id) {
+          ib_mod.insert(n.first);
+        }
+      }
+    }
+
+    float d2, d2_min;
+    float onom = 0, omod = 0;
+    for (auto c : cells) {
+
+      d2_min = std::numeric_limits<float>::infinity();
+      for (auto ib : int_borders) {
+        d2 = c->d2(ib); 
+        if (d2 < d2_min) d2_min = d2;
+      }
+      // if (d2 > 10000) cout << __LINE__ << " cells=" << ncells << " (" << (add ? "A" : "") << (sub ? "S" : "") << ")" << " d2=" << d2 << endl;
+      onom += c->area * sqrt(d2_min);
+
+      if (c == sub) continue;
+      d2_min = std::numeric_limits<float>::infinity();
+      for (auto ib : ib_mod) {
+        d2 = c->d2(ib); 
+        if (d2 < d2_min) d2_min = d2;
+      }
+      // if (d2 > 10000) cout << __LINE__ << " cells=" << ncells << " (" << (add ? "A" : "") << (sub ? "S" : "") << ")" << " d2=" << d2 << endl;
+      omod += c->area * sqrt(d2_min);
+    }
+
+    if (add) {
+      d2_min = std::numeric_limits<float>::infinity();
+      for (auto ib : ib_mod) {
+        d2 = add->d2(ib); 
+        if (d2 < d2_min) d2_min = d2;
+      }
+      // if (d2 > 10000) cout << __LINE__ << " cells=" << ncells << " (" << (add ? "A" : "") << (sub ? "S" : "") << ")" << " d2=" << d2 << endl;
+      omod += add->area * sqrt(d2_min);
+    }
+
+    if (verbose) cout << "modsum=" << omod << " and nomsum=" << onom << " :: ";
+
+    float Rmod3 = pow(sqrt(amod/M_PI), 3);
+    omod = omod / (M_PI * Rmod3/ 3);
+
+    float Rnom3 = pow(sqrt(area/M_PI), 3);
+    onom = onom / (M_PI * Rnom3/ 3);
+
+    if (verbose) {
+      cout << "Rmod=" << pow(Rmod3, 1/3.) << "(" << (add ? "A" : "") << (sub ? "S" : "") << ")"
+      << " and Rnom=" << pow(Rnom3, 1/3.) << endl;
+      cout << "omod=" << omod << " and onom=" << onom << endl;
+    }
+
+    return omod - onom;
+
+  }
+
+  double Region::obj_exchange(Cell* add, Cell* sub, bool verbose) {
+  
+    // Keep these variables for comparison.
+    float xmod(xctr * area), ymod(yctr * area), amod(area);
+
+    if (add) { xmod += add->area * add->x; ymod += add->area * add->y; amod += add->area; }
+    if (sub) { xmod -= sub->area * sub->x; ymod -= sub->area * sub->y; amod -= sub->area; }
+
+    xmod /= amod; ymod /= amod;
+
+    float Rnom2 = area / M_PI;
+    float Rmod2 = amod / M_PI;
+
+    float omod = 0, onom = 0;
+
+    if (add && add->d2(xmod, ymod) < Rmod2) omod += add->area;
+
+    for (auto c : cells) {
+
+      if (c->d2(xctr, yctr) < Rnom2) onom += c->area;
+
+      if (sub == c) continue;
+      if (c->d2(xmod, ymod) < Rmod2) omod += c->area;
+    }
+
+    return omod/amod - onom/area;
+  
+  }
+
+
+  float Region::d2(Region* r, RadiusType rt) {
+
+    std::pair< std::pair<float, float>, float > circ = r->get_circle_coords(rt);
+
+    float xR = circ.first.first;
+    float yR = circ.first.second;
+
+    return d2(xR, yR, rt);
+
+  }
 
   float Region::d2(float x, float y, RadiusType rt) {
 
@@ -2444,19 +2854,22 @@ namespace Cluscious {
   }
 
 
-  bool Universe::trade(Region* ir, RadiusType rt) {
+  bool Universe::trade(Region* ir, Region* single_er, ObjectiveMethod om) {
 
     std::unordered_map<int, bool> ib_connected;
     for (auto& ib : ir->int_borders) // ROOK, SLOW
       ib_connected[ib->id] = ib->neighbors_connected(false, false);
+
+    RadiusType rt = obj_radius[om];
 
     float best = 0;
     Cell *add = 0, *sub = 0;
     for (auto& eb : ir->ext_borders) {
 
       if (!eb->neighbors_connected(false, false)) continue;
-
+  
       Region* er = regions[eb->region];
+      if (single_er && single_er != er) continue;
 
       for (auto& ib : ir->int_borders) {
 
@@ -2465,12 +2878,19 @@ namespace Cluscious {
         if (!ib_connected[ib->id]) continue;
         if ( ib->is_neighbor(eb) ) continue; // Not worth it....
 
-        float nom = er->dist(eb->x, eb->y, rt) + ir->dist(ib->x, ib->y, rt);
-        float mod = er->dist(ib->x, ib->y, rt) + ir->dist(eb->x, eb->y, rt);
+        float delta(0);
+        switch (om) {
+          case ObjectiveMethod::HULL_A:    delta = - (ir->obj_hull    (eb, ib) + er->obj_hull    (ib, eb));
+          // case ObjectiveMethod::HULL_P: delta = - (ir->obj_hull_p  (eb, ib) + er->obj_hull_p  (ib, eb));
+          case ObjectiveMethod::POLSBY:    delta = - (ir->obj_polsby  (eb, ib) + er->obj_polsby  (ib, eb));
+          case ObjectiveMethod::ROHRBACH:  delta = - (ir->obj_rohrbach(eb, ib) + er->obj_rohrbach(ib, eb));
+          default: 
+            delta = + er->dist(ib->x, ib->y, rt) + ir->dist(eb->x, eb->y, rt)  // mod distances 
+                    - er->dist(ib->x, ib->y, rt) + ir->dist(eb->x, eb->y, rt); // nom distances
+        }
 
-        if (mod - nom < best) {
-          best = mod - nom;
-          add = eb; sub = ib;
+        if (delta < best) {
+          best = delta; add = eb; sub = ib;
         }
       }
     }
@@ -2572,7 +2992,7 @@ namespace Cluscious {
   }
 
 
-  void Universe::oiterate(ObjectiveMethod omethod, int niter = 1, float tol = 0.05, int seed = 0, int r = -1, int verbose = false) {
+  void Universe::oiterate(ObjectiveMethod omethod, int niter = 1, float tol = 0.05, int seed = 0, int r = -1, int verbose = 0) {
 
     if (r >= int(regions.size()))
       throw std::runtime_error(std::string("Cannot iterate over region -- there aren't that many!"));
@@ -2582,16 +3002,18 @@ namespace Cluscious {
       mersenne.seed(total_iterations + seed); // Different splits of loops etc. should be reproducible.
       total_iterations++;
 
-      if (!(i%10)) cout << "iteration " << i << endl;
+      if (!(i%100) || verbose) cout << "iteration " << i << endl;
 
       for (auto rit : regions) { // over all regions...
 
-        if (TRADE) trade(rit, obj_radius[omethod]);
+        if (TRADE) trade(rit, 0, omethod);
 
         float cut = RANDOM ? -0.01 : boost::numeric::bounds<float>::lowest();
-        greedy(rit, omethod, tol, cut, RANDOM, r, verbose);
+        greedy(rit, omethod, tol, cut, RANDOM, r, verbose > 1);
 
       }
+
+      destrand(DESTRAND_MIN, DESTRAND_MAX);
     }
 
     return;

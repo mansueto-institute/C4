@@ -2,6 +2,8 @@
 # cython: linetrace=True
 # distutils: language=c++
 # distutils: sources=Cluscious.cpp
+# distutils: libraries = armadillo
+# distutils: include_dirs = /usr/local/include
 
 from libcpp.string cimport string
 from libcpp.vector cimport vector
@@ -13,15 +15,16 @@ from libcpp.unordered_set cimport unordered_set
 cdef extern from "Cluscious.h" namespace "Cluscious" :
 
     cpdef enum ObjectiveMethod:
-        DISTANCE_A, DISTANCE_P, INERTIA_A, INERTIA_P, HULL_A, POLSBY, REOCK, EHRENBURG, POLSBY_W, PATH_FRAC
+        DISTANCE_A, DISTANCE_P, INERTIA_A, INERTIA_P, HULL_A, HULL_P, POLSBY, REOCK, EHRENBURG,
+        PATH_FRAC, AXIS_RATIO, MEAN_RADIUS, DYN_RADIUS, HARM_RADIUS, ROHRBACH, EXCHANGE, POLSBY_W
 
     cpdef enum RadiusType:
-        EQUAL_AREA, EQUAL_AREA_POP, EQUAL_CIRCUMFERENCE, SCC, LIC
+        EQUAL_AREA, EQUAL_AREA_POP, EQUAL_CIRCUMFERENCE, SCC, LIC, HULL, POWER
 
     cdef cppclass Cell:
         Cell() except + 
         Cell(Cell) except + 
-        Cell(int, int, double, double, double, map[int, double], int, int) except +
+        Cell(int, int, double, double, double, map[int, double], float, int) except +
         void add_edge(int, int, int)
         int id, pop
         double x, y, area
@@ -36,7 +39,7 @@ cdef extern from "Cluscious.h" namespace "Cluscious" :
     cdef cppclass Universe:
         Universe() except + 
         Universe(int) except + 
-        int pop, nregions
+        int pop, nregions, ncells
         double target
 
         int ALPHA
@@ -53,7 +56,6 @@ cdef extern from "Cluscious.h" namespace "Cluscious" :
         void add_edge(int, int, int, int)
         void add_node(int, float, float)
         void add_node_edge(int, int)
-        int  get_ncells()
         map[int, int] cell_region_map()
         vector[int] border_cells(int, int) 
         vector[int] clipped_cells()
@@ -62,26 +64,33 @@ cdef extern from "Cluscious.h" namespace "Cluscious" :
         pair[pair[float, float], float] get_circle_coords(int, RadiusType)
         void add_cell_to_region(int cid, int rid)
 
+        void assign_to_zero() except +
+        int  split_region(int, float) except +
+        int  merge_regions(int, int) except +
+        void split_line_init() except +
         void rand_init(int) except +
         vector[int] do_dijkstra(int, int)
         void build_dijkstra_graph()
         void adjacency_to_pointers()
         void node_ids_to_pointers()
         void connect_graph()
-        void trim_graph()
+        void trim_graph(float max_frac)
         void grow_kmeans(int popgrow)
+        void grow_random(int s)
         void load_partition(map[int, int] rmap)
         void iterate(int, float, int)
         int  destrand(int, int)
 
         void oiterate(ObjectiveMethod, int, float, int, int, int);
 
+        void iterate_power(float, int, int)
+
 
 
 
 cdef class cell:
     cdef Cell c_cell # hold a C++ instance which we're wrapping
-    def __cinit__(self, int i, int p, double x, double y, double a, map[int, double] wm, int edge, int split):
+    def __cinit__(self, int i, int p, double x, double y, double a, map[int, double] wm, float edge, int split):
         self.c_cell = Cell(i, p, x, y, a, wm, edge, split)
 
     def add_edge(self, int eid, int nodea, int nodeb):
@@ -152,17 +161,26 @@ cdef class universe:
     def add_node_edge(self, int nid, int eid):
         self.c_univ.add_node_edge(nid, eid)
 
-    def get_ncells(self):
-        return self.c_univ.get_ncells()
+    def assign_to_zero(self):
+        self.c_univ.assign_to_zero()
+
+    def split_region(self, int r, float a = -1):
+        return self.c_univ.split_region(r, a)
+
+    def merge_regions(self, int ra, int rb):
+        return self.c_univ.merge_regions(ra, rb)
+
+    def split_line_init(self):
+        return self.c_univ.split_line_init()
 
     def rand_init(self, seed = 0):
-        return self.c_univ.rand_init(seed)
+        self.c_univ.rand_init(seed)
 
     def connect_graph(self):
         self.c_univ.connect_graph()
 
-    def trim_graph(self):
-        self.c_univ.trim_graph()
+    def trim_graph(self, float max_frac = 0.9):
+        self.c_univ.trim_graph(max_frac)
 
     def build_dijkstra_graph(self):
         self.c_univ.build_dijkstra_graph()
@@ -205,6 +223,9 @@ cdef class universe:
     def grow_kmeans(self, int popgrow = False):
         self.c_univ.grow_kmeans(popgrow)
 
+    def grow_random(self, int s = 0):
+        self.c_univ.grow_random(s)
+
     def load_partition(self, rmap):
         if type(rmap) is dict:
           self.c_univ.load_partition(rmap)
@@ -220,6 +241,9 @@ cdef class universe:
         if not maxi: maxi = 1e9
         return self.c_univ.destrand(mini, maxi)
 
+    def iterate_power(self, float tol, int niter = 1, int reset = 0):
+        self.c_univ.iterate_power(tol, niter, reset)
+
     def iterate(self, int niter = 1, float tol = 0.05, int r = -1):
         self.c_univ.iterate(niter, tol, r)
 
@@ -232,6 +256,9 @@ cdef class universe:
 
     property target:
         def __get__(self): return self.c_univ.target
+
+    property ncells:
+        def __get__(self): return self.c_univ.ncells
 
     property nregions:
         def __get__(self): return self.c_univ.nregions

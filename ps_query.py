@@ -1,3 +1,6 @@
+states = """SELECT fips AS id, ST_Simplify(ST_Scale(ST_Transform(geom, epsg), 0.001, 0.001, 0.001), 5) AS state 
+            FROM states WHERE usps = upper('{}');"""
+
 tracts = """SELECT census_tracts_2015.county, census_tracts_2015.tract, 
                    ST_Scale(ST_Transform(census_tracts_2015.geomsimp, states.epsg), 0.001, 0.001, 0.001) as geometry, 
                    ST_X(ST_Transform(census_tracts_2015.centroid, states.epsg))/1000 as x, 

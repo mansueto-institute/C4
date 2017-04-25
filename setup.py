@@ -14,9 +14,13 @@ EXTENSION = distutils.extension.Extension(
                           '-g', '-std=c++11', '-Wall'] + ouff_mac,
     undef_macros       = ["NDEBUG"],
     extra_link_args    = ouff_mac,
+    # include_path       = ["/usr/local/include/"],
+    # libraries          = ["armadillo"]
     )
 
-EXT_MODULES=Cython.Build.cythonize([EXTENSION], language='c++', gdb_debug=True)
+EXT_MODULES=Cython.Build.cythonize([EXTENSION],
+                                   # include_path = ["/usr/local/include/"],
+                                   language='c++', gdb_debug=True)
 
 distutils.core.setup(
     name = 'simple',

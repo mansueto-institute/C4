@@ -2,7 +2,7 @@
 
 import argparse
 
-import sys, os, re
+import sys, os, re, math
 from random import randint
 
 import pycluscious as pycl
@@ -10,7 +10,7 @@ from pycluscious_helper import *
 
 import random
 
-def load_data(state):
+def load_data(state, method):
 
   ens_data(state)
 
@@ -20,14 +20,18 @@ def load_data(state):
   edges, spw = spw_from_shapefile(shapefile.format(state))
   gdf["ps_n"] = pd.Series(spw.neighbors)
   gdf["ps_w"] = pd.Series(spw.weights)
-  gdf["edge"] = pd.Series(edges) < 0.99
+  gdf["edge"] = pd.Series(edges) > 1e-3
+  gdf["edge_perim"] = pd.Series(edges)
 
   ### Add the cells....
   for xi, c in gdf.iterrows():
   
+    ##  if c.edge:
+    ##    print("Neighbors are ::", {n:w for n, w in zip(c.ps_n, c.ps_w)})
+    ##    print("Edge perimeter is ::", c.edge_perim)
     u.add_cell(pycl.cell(xi, int(c["pop"]), c.x, c.y, c.a, 
                          {n:w for n, w in zip(c.ps_n, c.ps_w)},
-                         c.edge, c.split))
+                         c.edge_perim, c.split))
   
   ### Add the edges....
   edf = pd.read_csv(edge_file.format(state) + ".csv")
@@ -53,19 +57,48 @@ def load_data(state):
   u.node_ids_to_pointers()
   
   ### Clean up the graph...
+  print("Connecting and trimming graph.")
   u.connect_graph()
   u.trim_graph()
   
-  u.build_dijkstra_graph()
+  if method == "path_frac":
+    print("Caching Dijkstra.")
+    u.build_dijkstra_graph()
+
+  print("Finished preparing the data.")
 
   return u, gdf
 
+def ring_df(u, ring = True):
 
-def main(state, seed, method, niter, nloops, tol, load, write, 
+  if not ring: return None
+
+  return gpd.GeoDataFrame(geometry=[LineString(u.get_point_ring(d)) for d in range(u.nregions)])
+
+def circ_df(u, circ = True):
+
+  if not circ: return None
+
+  return gpd.GeoDataFrame(geometry=[Point(c[0][0], c[0][1]).buffer(c[1] if math.isfinite(c[1]) and c[1] > 0 else 1)
+                                    for c in [u.get_circle_coords(r, pycl_circles[circ])
+                                    for r in range(u.nregions)]])
+
+def point_df(u, point = True):
+
+  if not point: return None
+
+  return gpd.GeoDataFrame(geometry=[Point(c[0][0], c[0][1])
+                                    for c in [u.get_circle_coords(r, pycl_circles[point])
+                                    for r in range(u.nregions)]])
+
+
+def main(state, seed, method, niter, nloops, tol, init, write, 
          grasp, allow_trades, destrand_inputs, destrand_min, destrand_max, tabu_length,
-         circ, ring, print_init, shading, verbose):
+         circ, ring, point, print_init, shading, borders, verbose):
 
-  u, gdf = load_data(state)
+  u, gdf = load_data(state, method)
+
+  if u.nregions == 1: return
 
   u.RANDOM       = grasp 
   u.TRADE        = allow_trades
@@ -73,49 +106,95 @@ def main(state, seed, method, niter, nloops, tol, load, write,
   u.DESTRAND_MIN = destrand_min
   u.DESTRAND_MAX = destrand_max
 
-  if not load:
+  if not init or "kmeans" in init:
     u.rand_init(seed)
     u.grow_kmeans(method == "dist_p") # True is population growing
-  else:
-    u.load_partition(load)
 
-    while destrand_inputs: destrand_inputs = u.destrand(mini = destrand_min, maxi = destrand_max)
+  elif "power" in init:
+    u.rand_init(seed)
+    u.grow_kmeans()
 
-  # Print once before looping.
-  if print_init:
+    sinit = init.split(":")
+    npiter = int(sinit[1]) if len(init) > 1 else 5000
+    u.iterate_power(tol, npiter, 1)
 
-    ring_df, circ_df = None, None
-    if ring: ring_df = gpd.GeoDataFrame(geometry=[LineString(u.get_point_ring(d)) for d in range(u.nregions)])
-    if circ: circ_df = gpd.GeoDataFrame(geometry=[Point(c[0][0], c[0][1]).buffer(c[1])
-                                                    for c in [u.get_circle_coords(r, pycl_circles[circ])
-                                                    for r in range(u.nregions)]])
+    ##  for x in range(1):
+    ##    for s in shading:
+    ##      style = "" if len(shading) == 1 else "_{}".format(s)
+    ##      plot_map(gdf, "results/{}_x{:03d}{}.pdf".format(write, x, style),
+    ##               crm = u.cell_region_map(), hlt = u.border_cells(True) if borders else None, shading = s,
+    ##               ring = ring_df(u, (ring or s == "density")),
+    ##               circ = circ_df(u, circ), point = point_df(u, point), legend = True)
 
-    plot_map(gdf, "results/{}_i000.pdf".format(write),
-             crm = u.cell_region_map(), hlt = u.border_cells(True), shading = shading,
-             ring = ring_df, circ = circ_df)
+    ##    u.iterate_power(tol, 1, 0)
 
-  for i in range(1, nloops+1):
+    ##  sys.exit(1)
 
-    u.oiterate(pycl_methods[method], niter = niter, tol = tol, seed = seed, verbose = verbose)
+  elif "rand" in init:
+    u.rand_init(seed)
+    u.grow_random(seed)
+    print("Finished random growth initialization.")
+
+  elif "split" in init:
+    u.assign_to_zero()
+    u.split_line_init()
+    # u.split_region(0)
+
+    # for x in range(100):
+    #   u.split_region(0, x * 0.01)
+    #   print("Initialized by split")
+
+    #   for s in shading:
+    #     style = "" if len(shading) == 1 else "_{}".format(s)
+    #     plot_map(gdf, "results/{}_x{:03d}{}.pdf".format(write, x, style),
+    #              crm = u.cell_region_map(), hlt = u.border_cells(True) if borders else None, shading = s,
+    #              ring = ring_df(u, (ring or s == "density")),
+    #              circ = circ_df(u, circ), point = point_df(u, point), legend = True)
+
+    #   u.merge_regions(0, 1)
+
+    # sys.exit()
+
+  elif "csv" in init:
+    u.load_partition(init)
+    # for x in range(1, 10):
+    #   print("x", x)
+
+    #   u.load_partition("results/fl_dist_a_s{:03d}_i000.csv".format(x))
+    #   for s in shading:
+    #     style = "" if len(shading) == 1 else "_{}".format(s)
+    #     plot_map(gdf, "results/{}_x{:03d}{}.pdf".format(write, x, style),
+    #              crm = u.cell_region_map(), hlt = u.border_cells(True) if borders else None, shading = s,
+    #              ring = ring_df(u, (ring or s == "density")),
+    #              circ = circ_df(u, circ), point = point_df(u, point), legend = True)
+
+    while destrand_inputs:
+      destrand_inputs = u.destrand(destrand_min, destrand_max)
+
+  else: 
+    print("Tried to initialize with unknown argument,", init)
+    print("Exiting....")
+    sys.exit()
+
+
+  for i in range(0, nloops+1):
+
+    if i: u.oiterate(pycl_methods[method], niter = niter, tol = tol, seed = seed, verbose = verbose)
+    elif not print_init: continue
     
     crm = u.cell_region_map()
 
-    ring_df, circ_df = None, None
-    if ring: ring_df = gpd.GeoDataFrame(geometry=[LineString(u.get_point_ring(d)) for d in range(u.nregions)])
-    if circ: circ_df = gpd.GeoDataFrame(geometry=[Point(c[0][0], c[0][1]).buffer(c[1])
-                                                    for c in [u.get_circle_coords(r, pycl_circles[circ])
-                                                    for r in range(u.nregions)]])
-    
-    plot_map(gdf, "results/{}_i{:03d}.pdf".format(write, i),
-             crm = crm, hlt = u.border_cells(True), shading = shading,
-             ring = ring_df, circ = circ_df, legend = verbose)
-
-    #   crm[add_cell] = old_reg
+    for s in shading:
+      style = "" if len(shading) == 1 else "_{}".format(s)
+      plot_map(gdf, "results/{}_i{:03d}{}.pdf".format(write, i, style),
+               crm = crm, hlt = u.border_cells(False) if borders else None, shading = s,
+               ring = ring_df(u, (ring or s == "density")),
+               circ = circ_df(u, circ), point = point_df(u, point), legend = verbose)
 
     with open ("results/{}_i{:03d}.csv".format(write, i), "w") as out:
       for k, v in crm.items(): out.write("{},{}\n".format(k, v))
     
-    print("completed iteration ::", i)
+    print("Completed iteration ::", i)
 
 
 if __name__ == "__main__":
@@ -124,9 +203,9 @@ if __name__ == "__main__":
   parser = argparse.ArgumentParser()
 
   # Initialization 
-  parser.add_argument("-i", "--seed",      default = 0, type = int)
+  parser.add_argument("-i", "--init",      default = "", type = str)
+  parser.add_argument("-x", "--seed",      default = 0, type = int)
   parser.add_argument("-s", "--state",     default = "pa", type=str.lower, choices = us_states, help='state')
-  parser.add_argument("-f", "--load",      default = "", type = str)
   parser.add_argument("-w", "--write",     default = "", type = str)
   parser.add_argument("-m", "--method",    default = "dist_a", choices = pycl_methods, type = str)
 
@@ -146,7 +225,9 @@ if __name__ == "__main__":
   # Plotting options.
   parser.add_argument("-r", "--ring",      action  = "store_true")
   parser.add_argument("-c", "--circ",      default = "", choices = pycl_circles, type = str)
-  parser.add_argument("--shading",         default = "district", type = str, choices = ["district", "target", "density"])
+  parser.add_argument("-p", "--point",     default = None, choices = pycl_circles, type = str)
+  parser.add_argument("--shading",         default = ["district"], nargs = "+")
+  parser.add_argument("--borders",         action  = "store_true")
   parser.add_argument("--print_init",      action  = "store_true")
 
   # Verbosity
@@ -154,6 +235,7 @@ if __name__ == "__main__":
   args = parser.parse_args()
 
   if not args.write: args.write = "{}_{}_s{:03d}".format(args.state, args.method, args.seed)
+  if "all" in args.shading: args.shading = ["district", "target", "density"]
 
   main(**vars(args))
 

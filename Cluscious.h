@@ -101,8 +101,9 @@ namespace Cluscious {
   template <typename T> int sign(T x);
   template <typename T> T clip(const T& n, T clipval);
 
-  enum ObjectiveMethod {DISTANCE_A, DISTANCE_P, INERTIA_A, INERTIA_P, HULL_A, POLSBY, REOCK, EHRENBURG, POLSBY_W,
-                        PATH_FRAC, AXIS_RATIO};
+  enum ObjectiveMethod {DISTANCE_A, DISTANCE_P, INERTIA_A, INERTIA_P, HULL_A, HULL_P, POLSBY, REOCK, EHRENBURG,
+                        PATH_FRAC, AXIS_RATIO, MEAN_RADIUS, DYN_RADIUS, HARM_RADIUS, ROHRBACH, EXCHANGE, POLSBY_W};
+
   enum RadiusType      {EQUAL_AREA, EQUAL_AREA_POP, EQUAL_CIRCUMFERENCE, SCC, LIC, HULL, POWER};
 
   class Cell {
@@ -112,7 +113,7 @@ namespace Cluscious {
       Cell();
       Cell(const Cell&);
       Cell(int i, int p, double x, double y,
-           double a, weight_map wm, bool is_univ_edge, bool is_split); // , std::string mp_wkt);
+           double a, weight_map wm, float edge_perim, bool is_split); // , std::string mp_wkt);
 
       float d2(float xi, float yi) { return (x-xi)*(x-xi) + (y-yi)*(y-yi); }
       float d2(Cell* ci) { return (x-ci->x)*(x-ci->x) + (y-ci->y)*(y-ci->y); }
@@ -148,9 +149,10 @@ namespace Cluscious {
       weight_map wm;
       neighbor_map nm;
 
-      bool is_univ_edge;
-      bool is_split;
-      bool split_neighbor;
+      float edge_perim;
+      bool  is_univ_edge;
+      bool  is_split;
+      bool  split_neighbor;
 
       bp_pt    pt;
 
@@ -177,19 +179,26 @@ namespace Cluscious {
       void add_cell_int_ext_neighbors(Cell* c);
       void remove_cell_int_ext_neighbors(Cell* c);
 
-      double obj(ObjectiveMethod omethod, Cell* add, Cell* sub, bool verbose);
+      double obj(ObjectiveMethod omethod, Cell* add = 0, Cell* sub = 0, bool verbose = false);
 
-      double obj_distance  (Cell* add, Cell* sub, float xx, float yy);
-      double obj_inertia_a (Cell* add, Cell* sub, bool verbose);
-      double obj_inertia_p (Cell* add, Cell* sub, bool verbose);
-      double obj_reock     (Cell* add, Cell* sub, bool verbose);
-      double obj_hull      (Cell* add, Cell* sub, bool verbose);
-      double obj_polsby    (Cell* add, Cell* sub, bool verbose);
-      double obj_path_frac (Cell* add, Cell* sub, bool verbose);
-      double obj_ehrenburg (Cell* add, Cell* sub, bool verbose);
-      double obj_axis_ratio(Cell* add, Cell* sub, bool verbose);
+      double obj_distance   (Cell* add, Cell* sub, float xx, float yy);
+      double obj_inertia_a  (Cell* add = 0, Cell* sub = 0, bool verbose = false);
+      double obj_inertia_p  (Cell* add = 0, Cell* sub = 0, bool verbose = false);
+      double obj_reock      (Cell* add = 0, Cell* sub = 0, bool verbose = false);
+      double obj_hull       (Cell* add = 0, Cell* sub = 0, bool verbose = false);
+      double obj_hull_p     (Cell* add = 0, Cell* sub = 0, bool verbose = false);
+      double obj_polsby     (Cell* add = 0, Cell* sub = 0, bool verbose = false);
+      double obj_path_frac  (Cell* add = 0, Cell* sub = 0, bool verbose = false);
+      double obj_ehrenburg  (Cell* add = 0, Cell* sub = 0, bool verbose = false);
+      double obj_axis_ratio (Cell* add = 0, Cell* sub = 0, bool verbose = false);
+      double obj_mean_radius(Cell* add = 0, Cell* sub = 0, bool verbose = false);
+      double obj_dyn_radius (Cell* add = 0, Cell* sub = 0, bool verbose = false);
+      double obj_harm_radius(Cell* add = 0, Cell* sub = 0, bool verbose = false);
+      double obj_rohrbach   (Cell* add = 0, Cell* sub = 0, bool verbose = false);
+      double obj_exchange   (Cell* add = 0, Cell* sub = 0, bool verbose = false);
 
       float d2(float x, float y, RadiusType rt = RadiusType::EQUAL_AREA);
+      float d2(Region* r, RadiusType rt = RadiusType::EQUAL_AREA);
       float d2(Cell* c, RadiusType rt = RadiusType::EQUAL_AREA) { return d2(c->x, c->y, rt); }
       float dist(float x, float y, RadiusType rt = RadiusType::EQUAL_AREA) { return sqrt(d2(x, y, rt)); }
       float dist(Cell*c, RadiusType rt = RadiusType::EQUAL_AREA) { return dist(c, rt); }
@@ -216,8 +225,7 @@ namespace Cluscious {
       float update_scc(Cell* add, Cell* sub, bool UPDATE);
       float update_lic(Cell* add, Cell* sub, bool UPDATE);
 
-      Cell* pcell;
-      float pd2;
+      double x_pow, y_pow, r2_pow;
 
       void make_ring();
       void divert_ring_at_cell(Cell* c, bool CW);
@@ -284,15 +292,16 @@ namespace Cluscious {
       std::vector<Node*>   nodes;
 
       void assign_to_zero();
-      bool split_region(int r = 0);
+      bool split_region(int r = 0, float a = -1, bool connect = true);
+      bool merge_regions(int rA, int rB);
       void split_line_init();
       void rand_init(int s);
       void grow_kmeans(int popgrow);
       void grow_random(int seed = 0);
 
-      void iterate_power(float tol, int niter, int reset);
+      void iterate_power(float tol, int niter, int reset = false); // , int popgrow = false);
       void voronoi_classify();
-      void center_power_cells();
+      // void center_power_cells();
 
       void load_partition(std::map<int, int> reg_map);
       void iterate(int niter, float tol, int r);
@@ -306,7 +315,7 @@ namespace Cluscious {
       std::mt19937 mersenne;
 
       int  TRADE;
-      bool trade(Region*, RadiusType);
+      bool trade(Region* a, Region* b, ObjectiveMethod om);
 
       size_t TABU_LENGTH;
       std::deque<Cell*>    tabu;
