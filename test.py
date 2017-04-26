@@ -94,7 +94,7 @@ def point_df(u, point = True):
 
 def main(state, seed, method, niter, nloops, tol, init, write, 
          grasp, allow_trades, destrand_inputs, destrand_min, destrand_max, tabu_length,
-         circ, ring, point, print_init, shading, borders, verbose):
+         circ, ring, point, print_init, no_plot, shading, borders, verbose):
 
   u, gdf = load_data(state, method)
 
@@ -115,20 +115,8 @@ def main(state, seed, method, niter, nloops, tol, init, write,
     u.grow_kmeans()
 
     sinit = init.split(":")
-    npiter = int(sinit[1]) if len(init) > 1 else 5000
+    npiter = int(sinit[1]) if len(init) > 1 else 10000
     u.iterate_power(tol, npiter, 1)
-
-    ##  for x in range(1):
-    ##    for s in shading:
-    ##      style = "" if len(shading) == 1 else "_{}".format(s)
-    ##      plot_map(gdf, "results/{}_x{:03d}{}.pdf".format(write, x, style),
-    ##               crm = u.cell_region_map(), hlt = u.border_cells(True) if borders else None, shading = s,
-    ##               ring = ring_df(u, (ring or s == "density")),
-    ##               circ = circ_df(u, circ), point = point_df(u, point), legend = True)
-
-    ##    u.iterate_power(tol, 1, 0)
-
-    ##  sys.exit(1)
 
   elif "rand" in init:
     u.rand_init(seed)
@@ -138,35 +126,9 @@ def main(state, seed, method, niter, nloops, tol, init, write,
   elif "split" in init:
     u.assign_to_zero()
     u.split_line_init()
-    # u.split_region(0)
-
-    # for x in range(100):
-    #   u.split_region(0, x * 0.01)
-    #   print("Initialized by split")
-
-    #   for s in shading:
-    #     style = "" if len(shading) == 1 else "_{}".format(s)
-    #     plot_map(gdf, "results/{}_x{:03d}{}.pdf".format(write, x, style),
-    #              crm = u.cell_region_map(), hlt = u.border_cells(True) if borders else None, shading = s,
-    #              ring = ring_df(u, (ring or s == "density")),
-    #              circ = circ_df(u, circ), point = point_df(u, point), legend = True)
-
-    #   u.merge_regions(0, 1)
-
-    # sys.exit()
 
   elif "csv" in init:
     u.load_partition(init)
-    # for x in range(1, 10):
-    #   print("x", x)
-
-    #   u.load_partition("results/fl_dist_a_s{:03d}_i000.csv".format(x))
-    #   for s in shading:
-    #     style = "" if len(shading) == 1 else "_{}".format(s)
-    #     plot_map(gdf, "results/{}_x{:03d}{}.pdf".format(write, x, style),
-    #              crm = u.cell_region_map(), hlt = u.border_cells(True) if borders else None, shading = s,
-    #              ring = ring_df(u, (ring or s == "density")),
-    #              circ = circ_df(u, circ), point = point_df(u, point), legend = True)
 
     while destrand_inputs:
       destrand_inputs = u.destrand(destrand_min, destrand_max)
@@ -193,7 +155,8 @@ def main(state, seed, method, niter, nloops, tol, init, write,
 
     with open ("results/{}_i{:03d}.csv".format(write, i), "w") as out:
       for k, v in crm.items(): out.write("{},{}\n".format(k, v))
-    
+
+
     print("Completed iteration ::", i)
 
 
@@ -227,6 +190,7 @@ if __name__ == "__main__":
   parser.add_argument("-c", "--circ",      default = "", choices = pycl_circles, type = str)
   parser.add_argument("-p", "--point",     default = None, choices = pycl_circles, type = str)
   parser.add_argument("--shading",         default = ["district"], nargs = "+")
+  parser.add_argument("--no_plot",         action  = "store_true")
   parser.add_argument("--borders",         action  = "store_true")
   parser.add_argument("--print_init",      action  = "store_true")
 
@@ -236,6 +200,8 @@ if __name__ == "__main__":
 
   if not args.write: args.write = "{}_{}_s{:03d}".format(args.state, args.method, args.seed)
   if "all" in args.shading: args.shading = ["district", "target", "density"]
+
+  if args.no_plot: shading = []
 
   main(**vars(args))
 

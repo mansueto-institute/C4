@@ -3024,12 +3024,7 @@ namespace Cluscious {
   int Universe::merge_strands(Cell* c, float max_frac) {
 
     std::vector<std::unordered_set<Cell*> > graphs;
-    // cout << "ncells=" << ncells << endl;
     int nsets = c->neighbor_sets(graphs, ncells, true);
-
-    // cout << "cell " << c->id << " has strands of length :: ";
-    // for (auto ng : graphs) cout << ng.size() << " ";
-    // cout << endl;
 
     if (nsets == 1) return 0;
 
@@ -3038,7 +3033,6 @@ namespace Cluscious {
 
       int strand_pop = std::accumulate(s.begin(), s.end(), 0, [](int a, Cell* b) { return a + (b->pop); });
       if (strand_pop > max_frac * target) continue;
-      // cout << "Removing a strand of size " << s.size() << " from cell " << c->id << endl;
 
       for (auto nc : s) {
 
@@ -3046,10 +3040,7 @@ namespace Cluscious {
         cells.erase(std::remove(cells.begin(), cells.end(), nc), cells.end());
         ncells--;
 
-        // cout << "Removed cell in strand :: " << nc->id << endl;
-
         delete nc;
-
         removed++;
 
       }
@@ -3094,25 +3085,25 @@ namespace Cluscious {
 
       int merged = merge_strands(cells[ci], max_frac);
 
-      for (auto c : cells) {
-        for (auto n : c->nm) {
-          if (find(cells.begin(), cells.end(), n.first) == cells.end()) {
-            cout << "BROKE DURING MERGE OF " << cells[ci]->id << " :: ";
-            for (auto n : cells[ci]->nm) cout << n.first->id << " ";
-            cout << endl;
+      // for (auto c : cells) {
+      //   for (auto n : c->nm) {
+      //     if (find(cells.begin(), cells.end(), n.first) == cells.end()) {
+      //       cout << "BROKE DURING MERGE OF " << cells[ci]->id << " :: ";
+      //       for (auto n : cells[ci]->nm) cout << n.first->id << " ";
+      //       cout << endl;
 
-            cout << "BROKEN CELL IS ::::: cid=" << c->id << " :: ";
-            for (auto n : c->nm) cout << n.first->id << " ";
-            cout << endl;
+      //       cout << "BROKEN CELL IS ::::: cid=" << c->id << " :: ";
+      //       for (auto n : c->nm) cout << n.first->id << " ";
+      //       cout << endl;
 
-            cout << "The clipped cells now include :: ";
-            for (auto cc : clipped_cells()) cout << cc << " ";
-            cout << endl;
+      //       cout << "The clipped cells now include :: ";
+      //       for (auto cc : clipped_cells()) cout << cc << " ";
+      //       cout << endl;
 
-            exit(1);
-          }
-        }
-      }
+      //       exit(1);
+      //     }
+      //   }
+      // }
       
       // backtrack by the max cells we could have lost...
       ci -= merged;
