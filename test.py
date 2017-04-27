@@ -138,6 +138,8 @@ def main(state, seed, method, niter, nloops, tol, init, write,
     print("Exiting....")
     sys.exit()
 
+  ens_dir("res/{}".format(write))
+
 
   for i in range(0, nloops+1):
 
@@ -148,12 +150,12 @@ def main(state, seed, method, niter, nloops, tol, init, write,
 
     for s in shading:
       style = "" if len(shading) == 1 else "_{}".format(s)
-      plot_map(gdf, "results/{}_i{:03d}{}.pdf".format(write, i, style),
+      plot_map(gdf, "res/{}/i{:03d}{}.pdf".format(write, i, style),
                crm = crm, hlt = u.border_cells(False) if borders else None, shading = s,
                ring = ring_df(u, (ring or s == "density")),
                circ = circ_df(u, circ), point = point_df(u, point), legend = verbose)
 
-    with open ("results/{}_i{:03d}.csv".format(write, i), "w") as out:
+    with open ("res/{}/i{:03d}.csv".format(write, i), "w") as out:
       for k, v in crm.items(): out.write("{},{}\n".format(k, v))
 
 
@@ -198,7 +200,7 @@ if __name__ == "__main__":
   parser.add_argument("-v", "--verbose",   default = 0, type = int)
   args = parser.parse_args()
 
-  if not args.write: args.write = "{}_{}_s{:03d}".format(args.state, args.method, args.seed)
+  if not args.write: args.write = "{}/{}/s{:03d}".format(args.state, args.method, args.seed)
   if "all" in args.shading: args.shading = ["district", "target", "density"]
 
   if args.no_plot: shading = []
