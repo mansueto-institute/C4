@@ -11,7 +11,7 @@ EXTENSION = distutils.extension.Extension(
     name = 'pycluscious', language = 'c++',
     sources = ['pycluscious.pyx'],
     extra_compile_args = ['-Wno-unused-function', 
-                          '-g', '-std=c++11', '-Wall'] + ouff_mac,
+                          '-std=c++11', '-Wall'] + ouff_mac,
     undef_macros       = ["NDEBUG"],
     extra_link_args    = ouff_mac,
     # include_path       = ["/usr/local/include/"],
@@ -20,7 +20,7 @@ EXTENSION = distutils.extension.Extension(
 
 EXT_MODULES=Cython.Build.cythonize([EXTENSION],
                                    # include_path = ["/usr/local/include/"],
-                                   language='c++', gdb_debug=True)
+                                   language='c++')#, gdb_debug=True)
 
 distutils.core.setup(
     name = 'simple',

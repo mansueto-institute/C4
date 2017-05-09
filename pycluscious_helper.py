@@ -229,7 +229,7 @@ def plot_map(gdf, filename, crm, hlt = None, shading = "district", figsize = 10,
       cb = fig.colorbar(sm, cax = cax, alpha = alpha, # label = "Population / Target" + trunc, labelsize=12,
                         orientation='horizontal', drawedges = True)
       cb.locator = ticker.MaxNLocator(nbins=5)
-      # cb.formatter.set_useOffset(False)
+      cb.formatter.set_useOffset(False)
       cb.set_label("Population / Target" + trunc, size=12)
       cb.ax.tick_params(labelsize=12)
       cb.dividers.set_visible(False)
@@ -246,6 +246,8 @@ def plot_map(gdf, filename, crm, hlt = None, shading = "district", figsize = 10,
 
     else:
       ax = dis.plot("C", alpha = 0.5, categorical = True, cmap = "nipy_spectral", linewidth = 1, legend = legend, figsize = fs)
+
+      if legend: ax.get_legend().set_bbox_to_anchor((1, 1))
 
       if hlt: gdf[gdf["H"] == 1].plot(facecolor = "grey", alpha = 0.1, linewidth = 0.05, ax = ax)
 
@@ -278,6 +280,7 @@ def plot_map(gdf, filename, crm, hlt = None, shading = "district", figsize = 10,
       point.plot(color = "white", ax = ax, markersize = 1)
 
     if not filename: return ax
+
 
     ax.figure.savefig(filename, bbox_inches='tight', pad_inches=0.05)
     plt.close('all')

@@ -2008,7 +2008,7 @@ namespace Cluscious {
 
         float perim_before = regions[r]->sumw_border;
         cout << "Splitting region " << r << " :: ";
-        for (float a = 0.0; a < 1; a += 0.01) {
+        for (float a = 0.0; a < 1; a += 0.05) {
           if (split_region(r, a, false)) {
             float perim_after = regions[r]->sumw_border + regions.back()->sumw_border;
             if (best_perim > perim_after - perim_before) {
@@ -2605,7 +2605,10 @@ namespace Cluscious {
 
     if (verbose) {
       cout << " >> NOM  (x, y)=(" << xctr << ", " << yctr << ")    onom=" << onom << ",\n"
-           << " >> MOD  (x, y)=(" << xmod << ", " << ymod << ")    omod=" << omod << endl;
+           << " >> MOD  (x, y)=(" << xmod << ", " << ymod << ")    omod=" << omod << "  ";
+      if (add) cout << "A" << add->id;
+      if (sub) cout << "S" << sub->id;
+      cout << endl;
     }
 
     return omod - onom;
@@ -2932,6 +2935,7 @@ namespace Cluscious {
       for (auto b : rit->ext_borders) {
 
         if (r >= 0 && b->region != r && rit->id != r) continue;
+        if (verbose) cout << "At region " << rit->id << " considering removing EB cell " << b->id << endl;
         greedy_evaluate(rit, b, tol, omethod, best_move, b_opt_c, opt_strands, verbose);
 
       }
@@ -2944,6 +2948,7 @@ namespace Cluscious {
       // up to four cells....
       transfer_strand(opt_strands);
 
+      if (verbose) cout << "Moving cell " << b_opt_c->id << " from region " << rem_reg << " to " << rit->id << endl;
       regions[rem_reg]->remove_cell(b_opt_c);
       rit->add_cell(b_opt_c);
 
@@ -2973,16 +2978,28 @@ namespace Cluscious {
                    regions[b->region]->obj(omethod, 0, b, verbose);
 
      float dO_ij = dp_ij + dF_ij;
+     if (verbose) cout << "Test moving " << b->id << " from r=" << b->region << " to " << r->id 
+                       << " :: dp_ij=" << dp_ij << "(" << dpop << " > " << dbpop << ")"
+                       << "  dF_ij=" << dF_ij << "  dO_ij=" << dO_ij << "     ";
+     if (verbose) cout << " best now b=" << (b_opt_c ? b_opt_c->id : -1) << " val=" << best_move << endl;
 
      if (dO_ij < best_move) return false;
+     if (verbose) cout << "  >>  best move." << endl;
      if (regions[b->region]->ncells == 1) return false;
+     if (verbose) cout << "  >>  neighbor has enough cells!" << endl;
 
      std::unordered_set<Cell*> strands;
      int max = (DESTRAND_MAX < regions[b->region]->ncells/2) ? DESTRAND_MAX : (regions[b->region]->ncells/2-1);
      int nsets = b->neighbor_strands(strands, max, false);
-     if (nsets != 1 && strands.size() < DESTRAND_MIN) return false;
-     if (is_tabu_strand(strands)) return false;
+     if ((nsets != 1 && strands.size() < DESTRAND_MIN) || 
+         is_tabu_strand(strands)) {
+       if (verbose) cout << "  !!! not connected :: nsets=" << nsets 
+                         << "  strand size=" << strands.size() 
+                         << "  strands tabu=" << is_tabu_strand(strands) << endl;
+       return false;
+     }
 
+     if (verbose) cout << "  >>  is connected." << endl;
      best_move = dO_ij;
      b_opt_c = b;
      opt_strands = strands;
@@ -3008,7 +3025,7 @@ namespace Cluscious {
 
         if (TRADE) trade(rit, 0, omethod);
 
-        float cut = RANDOM ? -0.01 : boost::numeric::bounds<float>::lowest();
+        float cut = RANDOM ? -0.01 : -1; // boost::numeric::bounds<float>::lowest();
         greedy(rit, omethod, tol, cut, RANDOM, r, verbose > 1);
 
       }

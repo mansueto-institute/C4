@@ -32,6 +32,7 @@ def load_data(state, method):
     u.add_cell(pycl.cell(xi, int(c["pop"]), c.x, c.y, c.a, 
                          {n:w for n, w in zip(c.ps_n, c.ps_w)},
                          c.edge_perim, c.split))
+
   
   ### Add the edges....
   edf = pd.read_csv(edge_file.format(state) + ".csv")
@@ -60,7 +61,7 @@ def load_data(state, method):
   print("Connecting and trimming graph.")
   u.connect_graph()
   u.trim_graph()
-  
+
   if method == "path_frac":
     print("Caching Dijkstra.")
     u.build_dijkstra_graph()
@@ -151,7 +152,7 @@ def main(state, seed, method, niter, nloops, tol, init, write,
     for s in shading:
       style = "" if len(shading) == 1 else "_{}".format(s)
       plot_map(gdf, "res/{}/i{:03d}{}.pdf".format(write, i, style),
-               crm = crm, hlt = u.border_cells(False) if borders else None, shading = s,
+               crm = crm, hlt = u.border_cells(True if "ext" in borders else False) if borders else None, shading = s,
                ring = ring_df(u, (ring or s == "density")),
                circ = circ_df(u, circ), point = point_df(u, point), legend = verbose)
 
@@ -191,9 +192,9 @@ if __name__ == "__main__":
   parser.add_argument("-r", "--ring",      action  = "store_true")
   parser.add_argument("-c", "--circ",      default = "", choices = pycl_circles, type = str)
   parser.add_argument("-p", "--point",     default = None, choices = pycl_circles, type = str)
-  parser.add_argument("--shading",         default = ["district"], nargs = "+")
+  parser.add_argument("--shading",         default = ["target"], nargs = "+")
   parser.add_argument("--no_plot",         action  = "store_true")
-  parser.add_argument("--borders",         action  = "store_true")
+  parser.add_argument("--borders",         default = "", choices = ["ext", "int"])
   parser.add_argument("--print_init",      action  = "store_true")
 
   # Verbosity
