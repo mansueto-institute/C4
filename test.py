@@ -148,6 +148,7 @@ def main(state, seed, method, niter, nloops, tol, init, write,
     elif not print_init: continue
     
     crm = u.cell_region_map()
+    if i == nloops and u.get_best_solution(): crm = u.get_best_solution()
 
     for s in shading:
       style = "" if len(shading) == 1 else "_{}".format(s)
@@ -159,10 +160,9 @@ def main(state, seed, method, niter, nloops, tol, init, write,
     with open ("res/{}/i{:03d}.csv".format(write, i), "w") as out:
       for k, v in crm.items(): out.write("{},{}\n".format(k, v))
 
-    if i == nloops:
-      save_geojson(gdf, "res/{}/final.geojson".format(write))
-
     print("Completed iteration ::", i)
+
+  save_geojson(gdf, crm, "res/{}/final.geojson".format(write))
 
 
 if __name__ == "__main__":

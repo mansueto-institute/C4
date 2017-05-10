@@ -1,6 +1,11 @@
 from netrc import netrc
 user, acct, passwd = netrc().authenticators("harris")
 
+import matplotlib as mpl
+mpl.use('Agg')
+import matplotlib.pyplot as plt
+plt.ioff()
+
 import matplotlib.pyplot as plt
 from matplotlib.colors import Normalize
 from matplotlib import ticker
@@ -285,8 +290,10 @@ def plot_map(gdf, filename, crm, hlt = None, shading = "district", figsize = 10,
     ax.figure.savefig(filename, bbox_inches='tight', pad_inches=0.05)
     plt.close('all')
 
-def save_geojson(gdf, filename):
 
+def save_geojson(gdf, crm, filename):
+
+    gdf["C"] = pd.Series(crm)
     dis = gdf.dissolve("C", aggfunc='sum')
     dis.reset_index(inplace = True)
 
@@ -296,7 +303,6 @@ def save_geojson(gdf, filename):
     dis = dis[["C", "a", "frac", "geometry", "pop"]]
     dis.crs = gdf.crs
     dis = dis.to_crs(epsg = 4326)
-    dis.plot("C", alpha = 0.15, categorical = True, cmap = "nipy_spectral", figsize = (8, 8)).set_axis_off()
     
     fill = {}
     ndistricts = dis.shape[0]
@@ -309,7 +315,8 @@ def save_geojson(gdf, filename):
     dis["stroke-width"] = 2
     dis["stroke"] = "#000000"
     dis["fill-opacity"] = 0.1
-    dis.to_file(filename, driver='GeoJSON')
+    with open(filename, "w") as out: out.write(dis.to_json())
+    # dis.to_file(filename, driver='GeoJSON') # crashes.
 
 
 def fix_mp(poly):

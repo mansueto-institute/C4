@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <limits>
 #include <iostream>
+#include <iomanip>
 #include <stdlib.h>
 
 // #include "boost/geometry/geometry.hpp"
@@ -90,6 +91,8 @@ namespace Cluscious {
 
   bool pop_compare(Region* r1, Region* r2);
   bool id_compare(Region* r1, Region* r2);
+  bool first_compare(std::pair<float, std::map<int, int> > a, std::pair<float, std::map<int, int> > b);
+
   bool cellp_set_len_compare(std::unordered_set<Cell*> s1, std::unordered_set<Cell*> s2);
 
   auto uo_set_nempty = [](std::unordered_set<Cell*> i) { return !i.empty(); };
@@ -306,6 +309,12 @@ namespace Cluscious {
       void iterate_power(float tol, int niter, int reset = false); // , int popgrow = false);
       void voronoi_classify();
       // void center_power_cells();
+      
+      float best_solution_val;
+      std::map<int, int> best_solution;
+      // std::vector<std::pair<float, std::map<int, int> > > best_solutions;
+      void update_best_solutions(ObjectiveMethod omethod, float tol);
+      std::map<int, int> get_best_solution() { return best_solution; }
 
       void load_partition(std::map<int, int> reg_map);
       void iterate(int niter, float tol, int r);

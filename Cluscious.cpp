@@ -1248,7 +1248,7 @@ namespace Cluscious {
   Universe::Universe() {}
   Universe::Universe(int n) 
     : pop(0), rcount(0), ncells(0), nregions(n), total_iterations(0), loaded_topo(false), 
-    ALPHA(4), RANDOM(false), TRADE(true), TABU_LENGTH(0),
+    best_solution_val(0), ALPHA(4), RANDOM(false), TRADE(true), TABU_LENGTH(0),
     DESTRAND_MIN(2), DESTRAND_MAX(15)
   {
 
@@ -2192,7 +2192,8 @@ namespace Cluscious {
 
     if (sub) { Ia_R = inertia_parallel_axis(Ia_R, xmod, ymod, amod, sub->x, sub->y, -sub->area); amod -= sub->area; }
 
-    return (amod*amod/Ia_R - area*area/Ia) / 2 / M_PI;
+    // return (amod*amod/Ia_R - area*area/Ia) / 2 / M_PI;
+    return amod * amod / Ia_R / 2 / M_PI;
 
   }
 
@@ -2219,7 +2220,8 @@ namespace Cluscious {
       amod -= sub->area;
     }
 
-    return (amod*pmod/Ip_R - area*pop/Ip) / 2 / M_PI;
+    // return (amod*pmod/Ip_R - area*pop/Ip) / 2 / M_PI;
+    return amod * pmod / Ip_R / 2 / M_PI;
 
   }
 
@@ -2241,7 +2243,8 @@ namespace Cluscious {
       if (sub) cout << "r_mod sub: " << sqrt(r2_mod) << "  area: " << amod << "  reock: " << reock_mod << endl;
     }
 
-    return reock_mod - reock_nom; // Higher number is improving.
+    // return reock_mod - reock_nom; // Higher number is improving.
+    return reock_mod;
 
   }
 
@@ -2267,7 +2270,8 @@ namespace Cluscious {
       if (sub) cout << "r_mod sub: " << sqrt(r2_mod) << "  area: " << amod << "  ehrenburg: " << ehrenburg_mod << endl;
     }
 
-    return ehrenburg_mod - ehrenburg_nom; // Higher number is improving.
+    // return ehrenburg_mod - ehrenburg_nom; // Higher number is improving.
+    return ehrenburg_mod;
 
   }
 
@@ -2307,7 +2311,8 @@ namespace Cluscious {
       if (sub) cout << "SUBB'ED :: nom=" << std::setprecision(5) << hull_nom << "=" << area << "/" << ch_area << "  mod=" << hull_mod << "=" << amod << "/" << chamod << endl;
     }
 
-    return hull_mod - hull_nom;
+    // return hull_mod - hull_nom;
+    return hull_mod;
 
   }
 
@@ -2323,14 +2328,18 @@ namespace Cluscious {
     if (sub) dist_pop_mod -= sub->pop;
     float hull_pop_mod = dist_pop_mod;
 
-    // Just rebuild the point collection.
-    bg_mpt mpt_mod = mpt;
-    for (auto ib : int_borders)
-      if (ib != sub) bgeo::append(mpt_mod, ib->pt);
-    if (add) bgeo::append(mpt_mod, add->pt);
-
     bg_poly ch_poly_mod;
-    bgeo::convex_hull(mpt_mod, ch_poly_mod);
+    if (!add && !sub) ch_poly_mod = ch_poly;
+    else {
+
+      // Just rebuild the point collection.
+      bg_mpt mpt_mod = mpt;
+      for (auto ib : int_borders)
+        if (ib != sub) bgeo::append(mpt_mod, ib->pt);
+      if (add) bgeo::append(mpt_mod, add->pt);
+
+      bgeo::convex_hull(mpt_mod, ch_poly_mod);
+    }
 
     if (add && !sub && bgeo::area(ch_poly_mod) < bgeo::area(ch_poly))
       cout << "ADDED  SHOULD BE LARGER  :  mod=" << bgeo::area(ch_poly_mod) << " mod=" << bgeo::area(ch_poly) << endl;
@@ -2338,11 +2347,13 @@ namespace Cluscious {
     if (sub && !add && bgeo::area(ch_poly_mod) > bgeo::area(ch_poly))
       cout << "SUBBED SHOULD BE SMALLER :  mod=" << bgeo::area(ch_poly_mod) << " nom=" << bgeo::area(ch_poly) << endl;
 
-    // We're only going to look at cells on the border
+    // We're only going to look at cells on the external border.
+    // We've already added the "add" cell to the total, so skip it.
+    // All others (and in turn, their neighbors) get a chance to be added.
     std::unordered_set<Cell*> nom_to_add, mod_to_add;
     for (auto const& c : ext_borders) {
-      if (c != add) nom_to_add.insert(c);
-      mod_to_add.insert(c);
+      nom_to_add.insert(c);
+      if (c != add) mod_to_add.insert(c);
     }
     if (sub) mod_to_add.insert(sub);
 
@@ -2398,7 +2409,8 @@ namespace Cluscious {
       if (sub) cout << "SUBB'ED :: nom=" << std::setprecision(5) << hull_nom << "=" << dist_pop << "/" << hull_pop << "  mod=" << hull_mod << "=" << dist_pop_mod << "/" << hull_pop_mod << endl;
     }
 
-    return hull_mod - hull_nom;
+    // return hull_mod - hull_nom;
+    return hull_mod;
 
   }
 
@@ -2469,7 +2481,8 @@ namespace Cluscious {
     double frac_mod = 1. * num_mod / den_mod;
     double frac_nom = 1. * num_nom / den_nom;
 
-    return frac_mod - frac_nom;
+    // return frac_mod - frac_nom;
+    return frac_mod; 
 
   }
 
@@ -2509,14 +2522,18 @@ namespace Cluscious {
       if (sub) cout << "SUB'ED  :: nom=" << std::setprecision(5) << polsby_nom << " :: A=" << area << " P=" << sumw_border << "     mod=" << polsby_mod << "=" << " :: A=" << area_mod << " P=" << perim_mod << endl;
     }
 
-    return polsby_mod - polsby_nom;
+    // return polsby_mod - polsby_nom;
+    return 4 * M_PI * area_mod / perim_mod / perim_mod;
 
   }
 
   double Region::obj_axis_ratio (Cell* add, Cell* sub, bool verbose) {
 
+    if (!add && !sub) return pca1/pca0;
+
     std::pair<float, float> coefs = update_pca(add, sub, false, false);
-    return coefs.second/coefs.first - pca1/pca0;
+    // return coefs.second/coefs.first - pca1/pca0;
+    return coefs.second/coefs.first;
 
   }
 
@@ -2547,7 +2564,8 @@ namespace Cluscious {
            << " >> MOD  (x, y)=(" << xmod << ", " << ymod << ")    omod=" << omod << endl;
     }
 
-    return omod - onom;
+    // return omod - onom;
+    return omod;
 
   }
 
@@ -2581,7 +2599,8 @@ namespace Cluscious {
       cout << endl;
     }
 
-    return omod - onom;
+    // return omod - onom;
+    return omod;
 
   }
 
@@ -2616,7 +2635,8 @@ namespace Cluscious {
            << "(x, y)=(" << xmod << ", " << ymod << ")    omod=" << omod << endl;
     }
 
-    return omod - onom;
+    // return omod - onom;
+    return omod;
   
   }
 
@@ -2710,7 +2730,8 @@ namespace Cluscious {
       cout << "omod=" << omod << " and onom=" << onom << endl;
     }
 
-    return omod - onom;
+    // return omod - onom;
+    return omod;
 
   }
 
@@ -2739,7 +2760,8 @@ namespace Cluscious {
       if (c->d2(xmod, ymod) < Rmod2) omod += c->area;
     }
 
-    return omod/amod - onom/area;
+    // return omod/amod - onom/area;
+    return omod/amod;
   
   }
 
@@ -2836,6 +2858,18 @@ namespace Cluscious {
     RadiusType rt = obj_radius[om];
 
     float best = 0;
+
+    float curr_obj = 0;
+    switch (om) { // As in greedy, this is constant, but we want a 0 baseline.
+      case ObjectiveMethod::HULL_A:    curr_obj = ir->obj_hull     (0, 0); break;  
+      case ObjectiveMethod::POLSBY:    curr_obj = ir->obj_polsby   (0, 0); break; 
+      case ObjectiveMethod::ROHRBACH:  curr_obj = ir->obj_rohrbach (0, 0); break; 
+      case ObjectiveMethod::INERTIA_A: curr_obj = ir->obj_inertia_a(0, 0); break; 
+      case ObjectiveMethod::INERTIA_P: curr_obj = ir->obj_inertia_p(0, 0); break; 
+      default: break;
+    }
+
+
     Cell *add = 0, *sub = 0;
     for (auto& eb : ir->ext_borders) {
 
@@ -2853,15 +2887,31 @@ namespace Cluscious {
 
         float delta(0);
         switch (om) {
-          case ObjectiveMethod::HULL_A:    delta = - (ir->obj_hull     (eb, ib) + er->obj_hull     (ib, eb));
-          case ObjectiveMethod::POLSBY:    delta = - (ir->obj_polsby   (eb, ib) + er->obj_polsby   (ib, eb));
-          case ObjectiveMethod::ROHRBACH:  delta = - (ir->obj_rohrbach (eb, ib) + er->obj_rohrbach (ib, eb));
-          case ObjectiveMethod::INERTIA_A: delta = - (ir->obj_inertia_a(eb, ib) + er->obj_inertia_a(ib, eb));
-          case ObjectiveMethod::INERTIA_P: delta = - (ir->obj_inertia_p(eb, ib) + er->obj_inertia_p(ib, eb));
-          // case ObjectiveMethod::HULL_P: delta = - (ir->obj_hull_p   (eb, ib) + er->obj_hull_p   (ib, eb));
+          case ObjectiveMethod::HULL_A:
+            delta = - (ir->obj_hull     (eb, ib) - curr_obj + er->obj_hull     (ib, eb) - er->obj_hull     (0, 0));
+            break;
+
+          case ObjectiveMethod::POLSBY:   
+            delta = - (ir->obj_polsby   (eb, ib) - curr_obj + er->obj_polsby   (ib, eb) - er->obj_polsby   (0, 0));
+            break;
+
+          case ObjectiveMethod::ROHRBACH: 
+            delta = - (ir->obj_rohrbach (eb, ib) - curr_obj + er->obj_rohrbach (ib, eb) - er->obj_rohrbach (0, 0));
+            break;
+
+          case ObjectiveMethod::INERTIA_A:
+            delta = - (ir->obj_inertia_a(eb, ib) - curr_obj + er->obj_inertia_a(ib, eb) - er->obj_inertia_a(0, 0));
+            break;
+
+          case ObjectiveMethod::INERTIA_P: 
+            delta = - (ir->obj_inertia_p(eb, ib) - curr_obj + er->obj_inertia_p(ib, eb) - er->obj_inertia_p(0, 0));
+            break;
+
+          // case ObjectiveMethod::HULL_P: delta = - (ir->obj_hull_p   (eb, ib) + er->obj_hull_p   (ib, eb) - er->obj_hull_p   (0, 0));
           default: 
             delta = + er->dist(ib->x, ib->y, rt) + ir->dist(eb->x, eb->y, rt)  // mod distances 
                     - er->dist(ib->x, ib->y, rt) + ir->dist(eb->x, eb->y, rt); // nom distances
+            break;
         }
 
         if (delta < best) {
@@ -2946,8 +2996,12 @@ namespace Cluscious {
 
      float dp_ij = sign(dbpop - dpop) * pow(fabs(dpop - dbpop)/tol, ALPHA);
 
-     float dF_ij = r                 ->obj(omethod, b, 0, verbose) +
-                   regions[b->region]->obj(omethod, 0, b, verbose);
+     // current r objective fn is constant across the set we're evaluating over
+     // (everything in this region), so don't worry about subtracting off its current value
+     // For now, DO recalculate the current obj fn for the other region.
+     float dF_ij = r                 ->obj(omethod, b, 0, verbose) + 
+                   regions[b->region]->obj(omethod, 0, b, verbose) - 
+                   regions[b->region]->obj(omethod, 0, 0, verbose);
 
      float dO_ij = dp_ij + dF_ij;
      if (verbose) cout << "Test moving " << b->id << " from r=" << b->region << " to " << r->id 
@@ -3003,11 +3057,31 @@ namespace Cluscious {
       }
 
       destrand(DESTRAND_MIN, DESTRAND_MAX);
+
+      update_best_solutions(omethod, tol/2);
     }
 
     return;
   }
 
+  void Universe::update_best_solutions(ObjectiveMethod omethod, float tol) {
+
+    float pop_obj = 0, spatial_obj = 0;
+    // bool passed_tolerance = false;
+    for (auto rit : regions) {
+      spatial_obj += rit->obj(omethod);
+      pop_obj += pow(fabs(rit->pop / target - 1)/tol, ALPHA);
+      if (fabs(rit->pop / target - 1) > tol) return;
+    }
+    float total_obj = spatial_obj - pop_obj;
+
+    if (best_solution_val < spatial_obj) {
+      cout << "Best solution now :: pop_obj=" << pop_obj << "  spatial obj=" << spatial_obj << "  total=" << total_obj << endl;
+      best_solution_val = spatial_obj;
+      best_solution = cell_region_map();
+    }
+
+  }
 
 
   int Universe::merge_strands(Cell* c, float max_frac) {
@@ -3111,6 +3185,7 @@ namespace Cluscious {
 
   bool pop_compare(Region* r1, Region* r2) { return r1->pop < r2->pop; }
   bool id_compare(Region* r1, Region* r2) { return r1->id < r2->id; }
+  bool first_compare(std::pair<float, std::map<int, int> > a, std::pair<float, std::map<int, int> > b) { return a.first > b.first; }
 
   template <typename T>
   int sign(T x) { return (x > 0) - (x < 0); }

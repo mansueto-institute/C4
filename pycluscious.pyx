@@ -58,6 +58,7 @@ cdef extern from "Cluscious.h" namespace "Cluscious" :
         void add_node(int, float, float)
         void add_node_edge(int, int)
         map[int, int] cell_region_map()
+        map[int, int] get_best_solution()
         vector[int] border_cells(int, int) 
         vector[int] clipped_cells()
 
@@ -214,6 +215,9 @@ cdef class universe:
 
     def cell_region_map(self):
         return self.c_univ.cell_region_map()
+
+    def get_best_solution(self):
+        return self.c_univ.get_best_solution()
 
     def border_cells(self, int ext = 0, int rid = -1):
         return self.c_univ.border_cells(ext, rid)
