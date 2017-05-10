@@ -285,6 +285,31 @@ def plot_map(gdf, filename, crm, hlt = None, shading = "district", figsize = 10,
     ax.figure.savefig(filename, bbox_inches='tight', pad_inches=0.05)
     plt.close('all')
 
+def save_geojson(gdf, filename):
+
+    dis = gdf.dissolve("C", aggfunc='sum')
+    dis.reset_index(inplace = True)
+
+    target = dis["pop"].sum() / dis.shape[0]
+    dis["frac"] = dis["pop"] / target
+
+    dis = dis[["C", "a", "frac", "geometry", "pop"]]
+    dis.crs = gdf.crs
+    dis = dis.to_crs(epsg = 4326)
+    dis.plot("C", alpha = 0.15, categorical = True, cmap = "nipy_spectral", figsize = (8, 8)).set_axis_off()
+    
+    fill = {}
+    ndistricts = dis.shape[0]
+    for ndi in range(ndistricts):
+        color = [int(v*255) for v in plt.get_cmap("nipy_spectral")(ndi/ndistricts)][:3]
+        color_hex = "#{0:02X}{1:02X}{2:02X}".format(*color)
+        fill[ndi] = color_hex
+        
+    dis["fill"] = pd.Series(fill)
+    dis["stroke-width"] = 2
+    dis["stroke"] = "#000000"
+    dis["fill-opacity"] = 0.1
+    dis.to_file(filename, driver='GeoJSON')
 
 
 def fix_mp(poly):

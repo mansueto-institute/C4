@@ -1,9 +1,10 @@
-# cython: profile=True
-# cython: linetrace=True
 # distutils: language=c++
 # distutils: sources=Cluscious.cpp
 # distutils: libraries = armadillo
 # distutils: include_dirs = /usr/local/include
+
+# % # cython: profile=True
+# % # cython: linetrace=True
 
 from libcpp.string cimport string
 from libcpp.vector cimport vector

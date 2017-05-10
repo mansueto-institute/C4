@@ -1,11 +1,11 @@
-states = """SELECT fips AS id, ST_Simplify(ST_Scale(ST_Transform(geom, epsg), 0.001, 0.001, 0.001), 5) AS state 
+states = """SELECT fips AS id, ST_Simplify(ST_Transform(geom, epsg), 5) AS state 
             FROM states WHERE usps = upper('{}');"""
 
 tracts = """SELECT census_tracts_2015.county, census_tracts_2015.tract, 
-                   ST_Scale(ST_Transform(census_tracts_2015.geomsimp, states.epsg), 0.001, 0.001, 0.001) as geometry, 
-                   ST_X(ST_Transform(census_tracts_2015.centroid, states.epsg))/1000 as x, 
-                   ST_Y(ST_Transform(census_tracts_2015.centroid, states.epsg))/1000 as y,
-                   census_tracts_2015.aland/1e6 as A, b01001_001e as pop,
+                   ST_Transform(census_tracts_2015.geomsimp, states.epsg) as geometry, 
+                   ST_X(ST_Transform(census_tracts_2015.centroid, states.epsg)) as x, 
+                   ST_Y(ST_Transform(census_tracts_2015.centroid, states.epsg)) as y,
+                   census_tracts_2015.aland as A, b01001_001e as pop,
                    CASE WHEN (ST_NumGeometries(census_tracts_2015.geomsimp) > 1) THEN 1 ELSE 0 END AS split
             FROM census_tracts_2015
             JOIN acssf5y2015 on
@@ -23,7 +23,7 @@ edges  = """
            seq, edge_id eid, edge < 0 AS rev,
            CASE WHEN (edge < 0) THEN start_node ELSE end_node END AS nodeA, 
            CASE WHEN (edge > 0) THEN start_node ELSE end_node END AS nodeB,
-           ST_Scale(ST_Transform(edge.geom, states.epsg), 0.001, 0.001, 0.001) as lines
+           ST_Transform(edge.geom, states.epsg) as lines
          FROM
            census_tracts_2015  AS tab,
            state_topo.relation AS rel,
@@ -49,8 +49,8 @@ nodes = """
         SELECT
           DISTINCT ON(node_id, nseq, eid)
           node_id nid, ne.seq as nseq, abs(ne.edge) as eid,
-          ST_X(ST_Transform(node.geom, states.epsg))/1000. x,
-          ST_Y(ST_Transform(node.geom, states.epsg))/1000. y
+          ST_X(ST_Transform(node.geom, states.epsg)) x,
+          ST_Y(ST_Transform(node.geom, states.epsg)) y
         FROM
           census_tracts_2015  AS tab,
           state_topo.relation AS rel,

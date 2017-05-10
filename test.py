@@ -159,6 +159,8 @@ def main(state, seed, method, niter, nloops, tol, init, write,
     with open ("res/{}/i{:03d}.csv".format(write, i), "w") as out:
       for k, v in crm.items(): out.write("{},{}\n".format(k, v))
 
+    if i == nloops:
+      save_geojson(gdf, "res/{}/final.geojson".format(write))
 
     print("Completed iteration ::", i)
 

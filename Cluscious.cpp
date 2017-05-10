@@ -485,21 +485,21 @@ namespace Cluscious {
 
   Region::Region() 
     : id(0), pop(0), ncells(0), area(1e-6), xctr(0), yctr(0), xpctr(0), ypctr(0), sumw_border(0),
-      has_topo(false), eps_scc(10), x_scc(0), y_scc(0), r2_scc(0),
+      Ip(0), has_topo(false), eps_scc(10), x_scc(0), y_scc(0), r2_scc(0),
       eps_lic(2), x_lic(0), y_lic(0), r2_lic(std::numeric_limits<double>::infinity()),
       x_pow(0), y_pow(0), r2_pow(0)
   {}
 
   Region::Region(int rid) 
     : id(rid), pop(0), ncells(0), area(1e-6), xctr(0), yctr(0), xpctr(0), ypctr(0), sumw_border(0),
-      has_topo(false), eps_scc(10), x_scc(0), y_scc(0), r2_scc(0), 
+      Ip(0), has_topo(false), eps_scc(10), x_scc(0), y_scc(0), r2_scc(0), 
       eps_lic(2), x_lic(0), y_lic(0), r2_lic(std::numeric_limits<double>::infinity()),
       x_pow(0), y_pow(0), r2_pow(0)
   {}
 
   Region::Region(int rid, Cell* c) 
     : id(rid), pop(0), ncells(0), area(1e-6), xctr(c->x), yctr(c->y), xpctr(c->x), ypctr(c->y), sumw_border(0),
-      has_topo(false), eps_scc(10), x_scc(0), y_scc(0), r2_scc(0),
+      Ip(0), has_topo(false), eps_scc(10), x_scc(0), y_scc(0), r2_scc(0),
       eps_lic(2), x_lic(0), y_lic(0), r2_lic(std::numeric_limits<double>::infinity()),
       x_pow(0), y_pow(0), r2_pow(0)
   { add_cell(c, true); }
@@ -515,6 +515,9 @@ namespace Cluscious {
 
     // if (has_topo && node_ring.size()) divert_ring_at_cell(c, true);
     if (has_topo && node_ring.size()) make_ring();
+
+    Ia = inertia_parallel_axis(Ia, xctr,  yctr,  area, c->x, c->y, c->area);
+    Ip = inertia_parallel_axis(Ip, xpctr, ypctr, pop,  c->x, c->y, c->pop);
 
     if (UPDATE_CTR) {
       xctr  = (xctr  * area + c->x * c->area)/(area + c->area);
@@ -540,6 +543,21 @@ namespace Cluscious {
       bgeo::convex_hull(mpt, ch_poly);
       ch_area = bgeo::area(ch_poly);
     }
+
+  }
+
+  double Region::inertia_parallel_axis(double I0, double x0, double y0, double w0, double xc, double yc, double wc) {
+
+    // Find the new center
+    double xp = (w0 * x0 + wc * xc) / (w0 + wc);
+    double yp = (w0 * y0 + wc * yc) / (w0 + wc);
+
+    // Calculate distances squares from the center 
+    // to the initial objects and new cells.
+    double d0p2 = (xp - x0) * (xp - x0) + (yp - y0) * (yp - y0);
+    double dcp2 = (xp - xc) * (xp - xc) + (yp - yc) * (yp - yc);
+
+    return I0 + w0 * d0p2 + wc * dcp2;
 
   }
 
@@ -611,7 +629,11 @@ namespace Cluscious {
     // if (has_topo && node_ring.size()) divert_ring_at_cell(c, false);
     if (has_topo && node_ring.size()) make_ring();
 
+    Ia = inertia_parallel_axis(Ia, xctr,  yctr,  area, c->x, c->y, -c->area);
+    Ip = inertia_parallel_axis(Ip, xpctr, ypctr, pop,  c->x, c->y, -c->pop);
+    
     if (UPDATE_CTR) {
+
       xctr  = (xctr  * area - c->x * c->area)/(area - c->area);
       yctr  = (yctr  * area - c->y * c->area)/(area - c->area);
       xpctr = (xpctr * pop  - c->x * c->pop )/(pop  - c->pop );
@@ -624,7 +646,6 @@ namespace Cluscious {
     
     area -= c->area;
     pop  -= c->pop;
-
 
     mpt.clear(); // faster to just re-copy.
     for (auto c : cells) bgeo::append(mpt, c->pt);
@@ -2153,103 +2174,52 @@ namespace Cluscious {
     if (add) return   r2 / add->d2(xx, yy);
     if (sub) return - r2 / sub->d2(xx, yy);
 
-    return 0;
+    return obj_dyn_radius();
 
   }
 
   double Region::obj_inertia_a(Cell* add, Cell* sub, bool verbose) {
-    
-    // Keep these variables for comparison.
-    float xmod(xctr * area), ymod(yctr * area), amod(area);
 
-    if (add) { xmod += add->area * add->x; ymod += add->area * add->y; amod += add->area; }
-    if (sub) { xmod -= sub->area * sub->x; ymod -= sub->area * sub->y; amod -= sub->area; }
+    double Ia_R(Ia), amod(area);
+    if (add) { Ia_R = inertia_parallel_axis(Ia_R, xctr, yctr, area, add->x, add->y, add->area); amod += add->area; }
 
-    xmod /= amod; ymod /= amod;
-
-
-    float onom = 0, omod = 0;
-    for (auto c : cells) {
-      onom += c->area * c->d2(xctr, yctr);
-      omod += c->area * c->d2(xmod, ymod);
+    // if we change both, must be reflected in second parallel axis...
+    double xmod(xctr), ymod(yctr);
+    if (add && sub) {
+      xmod = (area * xctr + add->area * add->x)/amod; 
+      ymod = (area * yctr + add->area * add->y)/amod;
     }
 
-    if (add) omod += add->area * add->d2(xmod, ymod);
-    if (sub) omod -= sub->area * sub->d2(xmod, ymod);
+    if (sub) { Ia_R = inertia_parallel_axis(Ia_R, xmod, ymod, amod, sub->x, sub->y, -sub->area); amod -= sub->area; }
 
-    if (verbose) {
-      cout << " >> NOM  (x, y)=(" << xctr << ", " << yctr << ")    onom=" << onom << ",  normalized: " << onom /((area * area) / (2 * M_PI)) << "\n"  
-           << " >> MOD  (x, y)=(" << xmod << ", " << ymod << ")    omod=" << omod << ",  normalized: " << omod /((amod * amod) / (2 * M_PI)) 
-           << endl;
-    }
-
-    onom /= (area * area) / (2 * M_PI);
-    omod /= (amod * amod) / (2 * M_PI);
-    // omod /= onom;
-
-    if (verbose) {
-      cout << " >> onom - omod = " << onom - omod << " (positive means improvement.)  \n";
-      if (add) cout << " >> add" << add->id << " coords at (x, y) = (" << add->x << ", " << add->y << ")" << endl;
-      if (sub) cout << " >> sub" << sub->id << " coords at (x, y) = (" << sub->x << ", " << sub->y << ")" << endl;
-    }
-
-    onom -= omod;
-
-    return onom;
+    return (amod*amod/Ia_R - area*area/Ia) / 2 / M_PI;
 
   }
 
 
   double Region::obj_inertia_p(Cell* add, Cell* sub, bool verbose) {
-    
-    // Keep these variables for comparison.
-    int pmod(pop); 
-    float xmod(xpctr * pop), ymod(ypctr * pop), amod(area);
 
-    if (add) {
-      xmod += add->pop * add->x;
-      ymod += add->pop * add->y;
+    double Ip_R(Ip), amod(area), pmod(pop);
+    if (add) { 
+      Ip_R = inertia_parallel_axis(Ip_R, xpctr, ypctr, pop, add->x, add->y, add->pop); 
+      amod += add->area; 
       pmod += add->pop;
-      amod += add->area;
+    }
+
+    // if we change both, must be reflected in second parallel axis...
+    double xmod(xpctr), ymod(ypctr);
+    if (add && sub) {
+      xmod = (pop * xpctr + add->pop * add->x)/pmod; 
+      ymod = (pop * ypctr + add->pop * add->y)/pmod;
     }
 
     if (sub) {
-      xmod -= sub->pop * sub->x;
-      ymod -= sub->pop * sub->y;
+      Ip_R = inertia_parallel_axis(Ip_R, xmod, ymod, pmod, sub->x, sub->y, -sub->pop);
       pmod -= sub->pop;
       amod -= sub->area;
     }
 
-    xmod /= pmod; ymod /= pmod;
-
-
-    float onom = 0, omod = 0;
-    for (auto c : cells) {
-      onom += c->pop * c->d2(xpctr, ypctr);
-      omod += c->pop * c->d2(xmod,  ymod );
-    }
-
-    if (add) omod += add->pop * add->d2(xmod, ymod);
-    if (sub) omod -= sub->pop * sub->d2(xmod, ymod);
-
-    if (verbose) {
-      cout << " >> NOM  a=" << area << "  pop=" << pop  << " (x, y)=(" << xpctr << ", " << ypctr << ")    onom=" << onom << ",  normalized: " << onom /((area * pop ) / (2 * M_PI)) << "\n"  
-           << " >> MOD  a=" << amod << "  pop=" << pmod << " (x, y)=(" << xmod  << ", " << ymod  << ")    omod=" << omod << ",  normalized: " << omod /((amod * pmod) / (2 * M_PI)) 
-           << endl;
-    }
-
-    onom /= (area * pop ) / (2 * M_PI);
-    omod /= (amod * pmod) / (2 * M_PI);
-
-    if (verbose) {
-      cout << " >> onom - omod = " << onom - omod << " (positive means improvement.)  \n";
-      if (add) cout << " >> add" << add->id << " coords at (x, y) = (" << add->x << ", " << add->y << ")" << endl;
-      if (sub) cout << " >> sub" << sub->id << " coords at (x, y) = (" << sub->x << ", " << sub->y << ")" << endl;
-    }
-
-    onom -= omod;
-
-    return onom;
+    return (amod*pmod/Ip_R - area*pop/Ip) / 2 / M_PI;
 
   }
 
@@ -2883,10 +2853,12 @@ namespace Cluscious {
 
         float delta(0);
         switch (om) {
-          case ObjectiveMethod::HULL_A:    delta = - (ir->obj_hull    (eb, ib) + er->obj_hull    (ib, eb));
-          // case ObjectiveMethod::HULL_P: delta = - (ir->obj_hull_p  (eb, ib) + er->obj_hull_p  (ib, eb));
-          case ObjectiveMethod::POLSBY:    delta = - (ir->obj_polsby  (eb, ib) + er->obj_polsby  (ib, eb));
-          case ObjectiveMethod::ROHRBACH:  delta = - (ir->obj_rohrbach(eb, ib) + er->obj_rohrbach(ib, eb));
+          case ObjectiveMethod::HULL_A:    delta = - (ir->obj_hull     (eb, ib) + er->obj_hull     (ib, eb));
+          case ObjectiveMethod::POLSBY:    delta = - (ir->obj_polsby   (eb, ib) + er->obj_polsby   (ib, eb));
+          case ObjectiveMethod::ROHRBACH:  delta = - (ir->obj_rohrbach (eb, ib) + er->obj_rohrbach (ib, eb));
+          case ObjectiveMethod::INERTIA_A: delta = - (ir->obj_inertia_a(eb, ib) + er->obj_inertia_a(ib, eb));
+          case ObjectiveMethod::INERTIA_P: delta = - (ir->obj_inertia_p(eb, ib) + er->obj_inertia_p(ib, eb));
+          // case ObjectiveMethod::HULL_P: delta = - (ir->obj_hull_p   (eb, ib) + er->obj_hull_p   (ib, eb));
           default: 
             delta = + er->dist(ib->x, ib->y, rt) + ir->dist(eb->x, eb->y, rt)  // mod distances 
                     - er->dist(ib->x, ib->y, rt) + ir->dist(eb->x, eb->y, rt); // nom distances

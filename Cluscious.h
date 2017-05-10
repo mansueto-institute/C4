@@ -203,6 +203,8 @@ namespace Cluscious {
       float dist(float x, float y, RadiusType rt = RadiusType::EQUAL_AREA) { return sqrt(d2(x, y, rt)); }
       float dist(Cell*c, RadiusType rt = RadiusType::EQUAL_AREA) { return dist(c, rt); }
 
+      double inertia_parallel_axis(double I0, double x0, double y0, double w0, double xc, double yc, double wc);
+
 
       int id;
       int pop;
@@ -212,6 +214,8 @@ namespace Cluscious {
       double xpctr, ypctr;
 
       double sumw_border;
+
+      double Ip, Ia;
       
       bool has_topo;
 
