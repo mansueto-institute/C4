@@ -1248,7 +1248,7 @@ namespace Cluscious {
   Universe::Universe() {}
   Universe::Universe(int n) 
     : pop(0), rcount(0), ncells(0), nregions(n), total_iterations(0), loaded_topo(false), 
-    best_solution_val(0), ALPHA(4), RANDOM(false), TRADE(true), TABU_LENGTH(0),
+    best_solution_val(0), best_tolerance_val(1), ALPHA(4), RANDOM(false), TRADE(true), TABU_LENGTH(0),
     DESTRAND_MIN(2), DESTRAND_MAX(15)
   {
 
@@ -2261,13 +2261,12 @@ namespace Cluscious {
     if (add) amod += add->area;
     if (sub) amod -= sub->area;
 
-    float ehrenburg_nom = M_PI * r2_lic / area;
+    // float ehrenburg_nom = M_PI * r2_lic / area;
     float ehrenburg_mod = M_PI * r2_mod / amod;
 
     if (verbose) {
-      cout << "r_lic nom: " << sqrt(r2_lic) << "  area: " << area << "  ehrenburg: " << ehrenburg_nom << endl;
-      if (add) cout << "r_mod add: " << sqrt(r2_mod) << "  area: " << amod << "  ehrenburg: " << ehrenburg_mod << endl;
-      if (sub) cout << "r_mod sub: " << sqrt(r2_mod) << "  area: " << amod << "  ehrenburg: " << ehrenburg_mod << endl;
+      cout << "r_lic " << (add?"A":"") << (sub?"S":"") 
+           << " : " << sqrt(r2_mod) << "  area: " << amod << "  ehrenburg: " << ehrenburg_mod << endl;
     }
 
     // return ehrenburg_mod - ehrenburg_nom; // Higher number is improving.
@@ -2278,7 +2277,7 @@ namespace Cluscious {
 
   double Region::obj_hull(Cell* add, Cell* sub, bool verbose) {
 
-    double hull_nom = area / ch_area;
+    if (!add && !sub) return area / ch_area;
 
     float     amod = area;
     float   chamod = ch_area;
@@ -2307,8 +2306,8 @@ namespace Cluscious {
     double hull_mod = amod / chamod;
 
     if (verbose) {
-      if (add) cout << "ADDED   :: nom=" << std::setprecision(5) << hull_nom << "=" << area << "/" << ch_area << "  mod=" << hull_mod << "=" << amod << "/" << chamod << endl;
-      if (sub) cout << "SUBB'ED :: nom=" << std::setprecision(5) << hull_nom << "=" << area << "/" << ch_area << "  mod=" << hull_mod << "=" << amod << "/" << chamod << endl;
+      cout << "hull " << (add?"A":"") << (sub?"S":"") 
+           << " =" << std::setprecision(5) << hull_mod << "=" << amod << "/" << chamod << endl;
     }
 
     // return hull_mod - hull_nom;
@@ -2319,9 +2318,8 @@ namespace Cluscious {
 
   double Region::obj_hull_p(Cell* add, Cell* sub, bool verbose) {
 
-
-    float dist_pop = pop;
-    float hull_pop = pop;
+    // float dist_pop = pop;
+    // float hull_pop = pop;
 
     float dist_pop_mod = pop;
     if (add) dist_pop_mod += add->pop;
@@ -2350,39 +2348,40 @@ namespace Cluscious {
     // We're only going to look at cells on the external border.
     // We've already added the "add" cell to the total, so skip it.
     // All others (and in turn, their neighbors) get a chance to be added.
-    std::unordered_set<Cell*> nom_to_add, mod_to_add;
+    std::unordered_set<Cell*> mod_to_add; //, nom_to_add;
     for (auto const& c : ext_borders) {
-      nom_to_add.insert(c);
+      // nom_to_add.insert(c);
       if (c != add) mod_to_add.insert(c);
     }
     if (sub) mod_to_add.insert(sub);
 
-    std::unordered_set<Cell*> nom_added, mod_added;
+    std::unordered_set<Cell*> mod_added; //, mod_added;
     if (add) mod_added.insert(add);
 
     int round = 0;
-    std::unordered_set<Cell*> nom_next,  mod_next;
-    while (!nom_to_add.empty() || !mod_to_add.empty()) {
+    std::unordered_set<Cell*> mod_next; // , nom_next;
+    // while (!nom_to_add.empty() || !mod_to_add.empty()) {
+    while (!mod_to_add.empty()) {
       round++;
 
       // Loop over the nominal borders, expanding them out.
-      for (auto c : nom_to_add) {
-        if (bgeo::covered_by(c->pt, ch_poly)) {
-          hull_pop += c->pop; // add it to the hull population.
-          nom_added.insert(c);
-          for (auto nm : c->nm) { // look at new foreign neighbors.
-            if (nm.first->region != id && 
-                nom_added.find(nm.first) == nom_added.end()) {
-              nom_next.insert(nm.first);
-            }
-          }
-        }
-      }
-      nom_to_add.clear();
-      nom_to_add.insert(nom_next.begin(), nom_next.end());
-      nom_next.clear();
+      // for (auto c : nom_to_add) {
+      //   if (bgeo::covered_by(c->pt, ch_poly)) {
+      //     hull_pop += c->pop; // add it to the hull population.
+      //     nom_added.insert(c);
+      //     for (auto nm : c->nm) { // look at new foreign neighbors.
+      //       if (nm.first->region != id && 
+      //           nom_added.find(nm.first) == nom_added.end()) {
+      //         nom_next.insert(nm.first);
+      //       }
+      //     }
+      //   }
+      // }
+      // nom_to_add.clear();
+      // nom_to_add.insert(nom_next.begin(), nom_next.end());
+      // nom_next.clear();
 
-      // Verbatim for the mod variables.
+      // Loop over the nominal borders, expanding them out.
       for (auto c : mod_to_add) {
         if (bgeo::covered_by(c->pt, ch_poly_mod)) {
           hull_pop_mod += c->pop; // add it to the hull population.
@@ -2401,12 +2400,11 @@ namespace Cluscious {
     }
 
 
-    double hull_nom = dist_pop / hull_pop;
+    // double hull_nom = dist_pop / hull_pop;
     double hull_mod = dist_pop_mod / hull_pop_mod;
 
     if (verbose) {
-      if (add) cout << "ADDED   :: nom=" << std::setprecision(5) << hull_nom << "=" << dist_pop << "/" << hull_pop << "  mod=" << hull_mod << "=" << dist_pop_mod << "/" << hull_pop_mod << endl; 
-      if (sub) cout << "SUBB'ED :: nom=" << std::setprecision(5) << hull_nom << "=" << dist_pop << "/" << hull_pop << "  mod=" << hull_mod << "=" << dist_pop_mod << "/" << hull_pop_mod << endl;
+      cout << (add?"A":"") << (sub?"S":"") << "  ::  hull=" << std::setprecision(5) << hull_mod << "=" << dist_pop_mod << "/" << hull_pop_mod << endl; 
     }
 
     // return hull_mod - hull_nom;
@@ -2419,7 +2417,7 @@ namespace Cluscious {
     if (verbose) cout << "In obj_path_frac..." << endl;
 
     // Yes, longs are necessary....
-    long long num_nom = 0, den_nom= 0;
+    // long long num_nom = 0, den_nom= 0;
     long long num_mod = 0, den_mod= 0;
 
     // If we're adding, add every other pair....
@@ -2444,7 +2442,7 @@ namespace Cluscious {
 
 
     // Now visit all of the other pairs of cells.
-    bool mod_contained, nom_contained;
+    bool mod_contained; // , nom_contained;
     for (auto& dest : cells) {
 
       int end_id = dest->id;
@@ -2452,34 +2450,35 @@ namespace Cluscious {
 
         if (dest->id < crawler->id) continue; // symmetric.
 
-        nom_contained = true;
+        // nom_contained = true;
         mod_contained = (sub != crawler);
 
         int pop_prod = (dest->pop) * (crawler->pop);
 
-        den_nom += pop_prod;
+        // den_nom += pop_prod;
         if (mod_contained) den_mod += pop_prod;
 
         while (crawler->id != end_id && 
-               (mod_contained || nom_contained)) {
+               mod_contained) {
+               // (mod_contained || nom_contained)) {
 
-          if (crawler->region != id) nom_contained = false;
+          // if (crawler->region != id) nom_contained = false;
           if ((crawler != add && crawler->region != id) || 
                crawler == sub) mod_contained = false;
 
           crawler = crawler->dijkstra_step[end_id];
         }
 
-        if (nom_contained) num_nom += pop_prod;
+        // if (nom_contained) num_nom += pop_prod;
         if (mod_contained) num_mod += pop_prod;
       }
     }
 
-    if (verbose) cout << "Nom fraction " << 1.*num_nom/den_nom << endl;
-    if (verbose) cout << "Mod fraction " << 1.*num_mod/den_mod << endl;
+    // if (verbose) cout << "Nom fraction " << 1.*num_nom/den_nom << endl;
+    if (verbose) cout << "Path fraction " << 1.*num_mod/den_mod << endl;
 
     double frac_mod = 1. * num_mod / den_mod;
-    double frac_nom = 1. * num_nom / den_nom;
+    // double frac_nom = 1. * num_nom / den_nom;
 
     // return frac_mod - frac_nom;
     return frac_mod; 
@@ -2488,7 +2487,7 @@ namespace Cluscious {
 
   double Region::obj_polsby(Cell* add, Cell* sub, bool verbose) {
 
-    float polsby_nom = 4 * M_PI * area / sumw_border / sumw_border; // 4*pi*A/P^2
+    if (!add && !sub) return 4 * M_PI * area / sumw_border / sumw_border; // 4*pi*A/P^2
 
     float area_mod(area), perim_mod(sumw_border);
 
@@ -2518,8 +2517,7 @@ namespace Cluscious {
     double polsby_mod = 4 * M_PI * area_mod / perim_mod / perim_mod;
 
     if (verbose) {
-      if (add) cout << "ADDED   :: nom=" << std::setprecision(5) << polsby_nom << " :: A=" << area << " P=" << sumw_border << "     mod=" << polsby_mod << "=" << " :: A=" << area_mod << " P=" << perim_mod << endl;
-      if (sub) cout << "SUB'ED  :: nom=" << std::setprecision(5) << polsby_nom << " :: A=" << area << " P=" << sumw_border << "     mod=" << polsby_mod << "=" << " :: A=" << area_mod << " P=" << perim_mod << endl;
+      cout << (add?"A":"") << (sub?"S":"") << "     mod=" << polsby_mod << "=" << " :: A=" << area_mod << " P=" << perim_mod << endl;
     }
 
     // return polsby_mod - polsby_nom;
@@ -2547,21 +2545,20 @@ namespace Cluscious {
 
     xmod /= amod; ymod /= amod;
 
-    float onom = 0, omod = 0;
+    float omod = 0; //, omod = 0;
     for (auto c : cells) {
-      onom += c->area * c->dist(xctr, yctr);
+      // onom += c->area * c->dist(xctr, yctr);
       omod += c->area * c->dist(xmod, ymod);
     }
 
     if (add) omod += add->area * add->dist(xmod, ymod);
     if (sub) omod -= sub->area * sub->dist(xmod, ymod);
 
-    onom = (2 * sqrt(area/M_PI) / 3) / (onom / area);
+    // onom = (2 * sqrt(area/M_PI) / 3) / (onom / area);
     omod = (2 * sqrt(amod/M_PI) / 3) / (omod / amod);
 
     if (verbose) {
-      cout << " >> NOM  (x, y)=(" << xctr << ", " << yctr << ")    onom=" << onom << ",\n"
-           << " >> MOD  (x, y)=(" << xmod << ", " << ymod << ")    omod=" << omod << endl;
+      cout << "Mean radius (x, y)=(" << xmod << ", " << ymod << ")    omod=" << omod << endl;
     }
 
     // return omod - onom;
@@ -2579,21 +2576,20 @@ namespace Cluscious {
 
     xmod /= amod; ymod /= amod;
 
-    float onom = 0, omod = 0;
+    float omod = 0; //, omod = 0;
     for (auto c : cells) {
-      onom += c->area * c->d2(xctr, yctr);
+      // onom += c->area * c->d2(xctr, yctr);
       omod += c->area * c->d2(xmod, ymod);
     }
 
     if (add) omod += add->area * add->d2(xmod, ymod);
     if (sub) omod -= sub->area * sub->d2(xmod, ymod);
 
-    onom = sqrt((area/(2 * M_PI)) / (onom/area));
+    // onom = sqrt((area/(2 * M_PI)) / (onom/area));
     omod = sqrt((amod/(2 * M_PI)) / (omod/amod));
 
     if (verbose) {
-      cout << " >> NOM  (x, y)=(" << xctr << ", " << yctr << ")    onom=" << onom << ",\n"
-           << " >> MOD  (x, y)=(" << xmod << ", " << ymod << ")    omod=" << omod << "  ";
+      cout << "Dynamic radius :: (x, y)=(" << xmod << ", " << ymod << ")    omod=" << omod << "  ";
       if (add) cout << "A" << add->id;
       if (sub) cout << "S" << sub->id;
       cout << endl;
@@ -2616,22 +2612,20 @@ namespace Cluscious {
 
     xmod /= amod; ymod /= amod;
 
-    float onom = 0, omod = 0;
+    float omod = 0; //, onom = 0;
     for (auto c : cells) {
-      onom += c->area / c->dist(xctr, yctr);
+      // onom += c->area / c->dist(xctr, yctr);
       omod += c->area / c->dist(xmod, ymod);
     }
 
     if (add) omod += add->area / add->dist(xmod, ymod);
     if (sub) omod -= sub->area / sub->dist(xmod, ymod);
 
-    onom = sqrt(area/(4 * M_PI)) / (area/onom);
+    // onom = sqrt(area/(4 * M_PI)) / (area/onom);
     omod = sqrt(amod/(4 * M_PI)) / (amod/omod);
 
     if (verbose) {
-      cout << " >> NOM  (x, y)=(" << xctr << ", " << yctr << ")    onom=" << onom << ",\n"
-           << " >> MOD "
-           << " (" << (add ? "A" : "") << (sub ? "S" : "") << ")"
+      cout << "harm radius " << "(" << (add ? "A" : "") << (sub ? "S" : "") << ") :: "
            << "(x, y)=(" << xmod << ", " << ymod << ")    omod=" << omod << endl;
     }
 
@@ -2685,16 +2679,16 @@ namespace Cluscious {
     }
 
     float d2, d2_min;
-    float onom = 0, omod = 0;
+    float omod = 0; //, omod = 0;
     for (auto c : cells) {
 
-      d2_min = std::numeric_limits<float>::infinity();
-      for (auto ib : int_borders) {
-        d2 = c->d2(ib); 
-        if (d2 < d2_min) d2_min = d2;
-      }
+      // d2_min = std::numeric_limits<float>::infinity();
+      // for (auto ib : int_borders) {
+      //   d2 = c->d2(ib); 
+      //   if (d2 < d2_min) d2_min = d2;
+      // }
       // if (d2 > 10000) cout << __LINE__ << " cells=" << ncells << " (" << (add ? "A" : "") << (sub ? "S" : "") << ")" << " d2=" << d2 << endl;
-      onom += c->area * sqrt(d2_min);
+      // onom += c->area * sqrt(d2_min);
 
       if (c == sub) continue;
       d2_min = std::numeric_limits<float>::infinity();
@@ -2716,18 +2710,18 @@ namespace Cluscious {
       omod += add->area * sqrt(d2_min);
     }
 
-    if (verbose) cout << "modsum=" << omod << " and nomsum=" << onom << " :: ";
+    if (verbose) cout << "modsum=" << omod << endl; // " and nomsum=" << onom << " :: ";
 
     float Rmod3 = pow(sqrt(amod/M_PI), 3);
     omod = omod / (M_PI * Rmod3/ 3);
 
-    float Rnom3 = pow(sqrt(area/M_PI), 3);
-    onom = onom / (M_PI * Rnom3/ 3);
+    // float Rnom3 = pow(sqrt(area/M_PI), 3);
+    // onom = onom / (M_PI * Rnom3/ 3);
 
     if (verbose) {
-      cout << "Rmod=" << pow(Rmod3, 1/3.) << "(" << (add ? "A" : "") << (sub ? "S" : "") << ")"
-      << " and Rnom=" << pow(Rnom3, 1/3.) << endl;
-      cout << "omod=" << omod << " and onom=" << onom << endl;
+      cout << "Rmod=" << pow(Rmod3, 1/3.) << "(" << (add ? "A" : "") << (sub ? "S" : "") << ")  omod=" << omod << endl;
+      // << " and Rnom=" << pow(Rnom3, 1/3.) << endl;
+      // cout << "omod=" << omod << " and onom=" << onom << endl;
     }
 
     // return omod - onom;
@@ -2745,16 +2739,16 @@ namespace Cluscious {
 
     xmod /= amod; ymod /= amod;
 
-    float Rnom2 = area / M_PI;
+    // float Rnom2 = area / M_PI;
     float Rmod2 = amod / M_PI;
 
-    float omod = 0, onom = 0;
+    float omod = 0; // , onom = 0;
 
     if (add && add->d2(xmod, ymod) < Rmod2) omod += add->area;
 
     for (auto c : cells) {
 
-      if (c->d2(xctr, yctr) < Rnom2) onom += c->area;
+      // if (c->d2(xctr, yctr) < Rnom2) onom += c->area;
 
       if (sub == c) continue;
       if (c->d2(xmod, ymod) < Rmod2) omod += c->area;
@@ -2849,7 +2843,7 @@ namespace Cluscious {
   }
 
 
-  bool Universe::trade(Region* ir, Region* single_er, ObjectiveMethod om) {
+  bool Universe::trade(Region* ir, Region* single_er, ObjectiveMethod om, float tol) {
 
     std::unordered_map<int, bool> ib_connected;
     for (auto& ib : ir->int_borders) // ROOK, SLOW
@@ -2859,14 +2853,12 @@ namespace Cluscious {
 
     float best = 0;
 
-    float curr_obj = 0;
-    switch (om) { // As in greedy, this is constant, but we want a 0 baseline.
-      case ObjectiveMethod::HULL_A:    curr_obj = ir->obj_hull     (0, 0); break;  
-      case ObjectiveMethod::POLSBY:    curr_obj = ir->obj_polsby   (0, 0); break; 
-      case ObjectiveMethod::ROHRBACH:  curr_obj = ir->obj_rohrbach (0, 0); break; 
-      case ObjectiveMethod::INERTIA_A: curr_obj = ir->obj_inertia_a(0, 0); break; 
-      case ObjectiveMethod::INERTIA_P: curr_obj = ir->obj_inertia_p(0, 0); break; 
-      default: break;
+    float curr_obj(0);
+    // As in greedy, this is constant, but we want a 0 baseline.
+    if (om == ObjectiveMethod::HULL_A    || om == ObjectiveMethod::POLSBY    ||
+        om == ObjectiveMethod::INERTIA_A || om == ObjectiveMethod::INERTIA_P ||
+        om == ObjectiveMethod::ROHRBACH) {
+      curr_obj = ir->obj(om);
     }
 
 
@@ -2876,6 +2868,8 @@ namespace Cluscious {
       if (!eb->neighbors_connected(false, false)) continue;
   
       Region* er = regions[eb->region];
+      // if (fabs(er->pop - ir->pop) > tol * target) continue;
+
       if (single_er && single_er != er) continue;
 
       for (auto& ib : ir->int_borders) {
@@ -2886,32 +2880,13 @@ namespace Cluscious {
         if ( ib->is_neighbor(eb) ) continue; // Not worth it....
 
         float delta(0);
-        switch (om) {
-          case ObjectiveMethod::HULL_A:
-            delta = - (ir->obj_hull     (eb, ib) - curr_obj + er->obj_hull     (ib, eb) - er->obj_hull     (0, 0));
-            break;
-
-          case ObjectiveMethod::POLSBY:   
-            delta = - (ir->obj_polsby   (eb, ib) - curr_obj + er->obj_polsby   (ib, eb) - er->obj_polsby   (0, 0));
-            break;
-
-          case ObjectiveMethod::ROHRBACH: 
-            delta = - (ir->obj_rohrbach (eb, ib) - curr_obj + er->obj_rohrbach (ib, eb) - er->obj_rohrbach (0, 0));
-            break;
-
-          case ObjectiveMethod::INERTIA_A:
-            delta = - (ir->obj_inertia_a(eb, ib) - curr_obj + er->obj_inertia_a(ib, eb) - er->obj_inertia_a(0, 0));
-            break;
-
-          case ObjectiveMethod::INERTIA_P: 
-            delta = - (ir->obj_inertia_p(eb, ib) - curr_obj + er->obj_inertia_p(ib, eb) - er->obj_inertia_p(0, 0));
-            break;
-
-          // case ObjectiveMethod::HULL_P: delta = - (ir->obj_hull_p   (eb, ib) + er->obj_hull_p   (ib, eb) - er->obj_hull_p   (0, 0));
-          default: 
-            delta = + er->dist(ib->x, ib->y, rt) + ir->dist(eb->x, eb->y, rt)  // mod distances 
-                    - er->dist(ib->x, ib->y, rt) + ir->dist(eb->x, eb->y, rt); // nom distances
-            break;
+        if (om == ObjectiveMethod::HULL_A    || om == ObjectiveMethod::POLSBY    ||
+            om == ObjectiveMethod::INERTIA_A || om == ObjectiveMethod::INERTIA_P ||
+            om == ObjectiveMethod::ROHRBACH) {
+          delta = - (ir->obj(om, eb, ib) - curr_obj + er->obj(om, ib, eb) - er->obj(om));
+        } else {
+          delta = + er->dist(ib->x, ib->y, rt) + ir->dist(eb->x, eb->y, rt)  // mod distances 
+                  - er->dist(ib->x, ib->y, rt) + ir->dist(eb->x, eb->y, rt); // nom distances
         }
 
         if (delta < best) {
@@ -3049,7 +3024,7 @@ namespace Cluscious {
 
       for (auto rit : regions) { // over all regions...
 
-        if (TRADE) trade(rit, 0, omethod);
+        if (TRADE) trade(rit, 0, omethod, tol * 2);
 
         float cut = RANDOM ? -0.01 : -1; // boost::numeric::bounds<float>::lowest();
         greedy(rit, omethod, tol, cut, RANDOM, r, verbose > 1);
@@ -3058,7 +3033,7 @@ namespace Cluscious {
 
       destrand(DESTRAND_MIN, DESTRAND_MAX);
 
-      update_best_solutions(omethod, tol/2);
+      update_best_solutions(omethod, tol * 2);
     }
 
     return;
@@ -3066,19 +3041,20 @@ namespace Cluscious {
 
   void Universe::update_best_solutions(ObjectiveMethod omethod, float tol) {
 
-    float pop_obj = 0, spatial_obj = 0;
-    // bool passed_tolerance = false;
+    float spatial_obj = 0, pop_max_dtol = 0;
     for (auto rit : regions) {
       spatial_obj += rit->obj(omethod);
-      pop_obj += pow(fabs(rit->pop / target - 1)/tol, ALPHA);
-      if (fabs(rit->pop / target - 1) > tol) return;
-    }
-    float total_obj = spatial_obj - pop_obj;
 
-    if (best_solution_val < spatial_obj) {
-      cout << "Best solution now :: pop_obj=" << pop_obj << "  spatial obj=" << spatial_obj << "  total=" << total_obj << endl;
+      float dtol = fabs(rit->pop / target - 1);
+      if (dtol > pop_max_dtol) pop_max_dtol = dtol;
+    }
+
+    if ((best_tolerance_val > tol && pop_max_dtol < best_tolerance_val) ||
+        (pop_max_dtol < tol && best_solution_val < spatial_obj)) {
       best_solution_val = spatial_obj;
+      best_tolerance_val = pop_max_dtol;
       best_solution = cell_region_map();
+      cout << "Best solution now :: pop dtol=" << best_tolerance_val << "  spatial obj=" << best_solution_val << endl;
     }
 
   }

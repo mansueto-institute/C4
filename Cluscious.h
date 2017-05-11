@@ -311,6 +311,7 @@ namespace Cluscious {
       // void center_power_cells();
       
       float best_solution_val;
+      float best_tolerance_val;
       std::map<int, int> best_solution;
       // std::vector<std::pair<float, std::map<int, int> > > best_solutions;
       void update_best_solutions(ObjectiveMethod omethod, float tol);
@@ -328,7 +329,7 @@ namespace Cluscious {
       std::mt19937 mersenne;
 
       int  TRADE;
-      bool trade(Region* a, Region* b, ObjectiveMethod om);
+      bool trade(Region* a, Region* b, ObjectiveMethod om, float tol = 1);
 
       size_t TABU_LENGTH;
       std::deque<Cell*>    tabu;
