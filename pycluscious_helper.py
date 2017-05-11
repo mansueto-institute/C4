@@ -63,6 +63,23 @@ pycl_methods = {"reock"       : pycl.ObjectiveMethod.REOCK,
                 "rohrbach"    : pycl.ObjectiveMethod.ROHRBACH,
                 "exchange"    : pycl.ObjectiveMethod.EXCHANGE}
 
+pycl_formal  = {
+                "reock"       : "Circumscribing Circles",
+                "inertia_a"   : "Moment of Inertia: Area",
+                "inertia_p"   : "Moment of Inertia: Pop.",
+                "polsby"      : "Isoperimeter Quotient",
+                "hull_a"      : "Convex Hull Area Ratio",
+                "hull_p"      : "Convex Hull Pop. Ratio",
+                "ehrenburg"   : "Inscribed Circles",
+                "axis_ratio"  : "Length/Width Ratio",
+                "mean_radius" : "Mean Radius",
+                "dyn_radius"  : "Dynamic Radius",
+                "harm_radius" : "Harmonic Radius",
+                "rohrbach"    : "Distance to Perimeter",
+                "exchange"    : "Exchange",
+                # "path_frac"   : "Path Fraction",
+               }
+
 
 pycl_circles = {"area"     : pycl.RadiusType.EQUAL_AREA, 
                 "area_pop" : pycl.RadiusType.EQUAL_AREA_POP, 
@@ -291,16 +308,23 @@ def plot_map(gdf, filename, crm, hlt = None, shading = "district", figsize = 10,
     plt.close('all')
 
 
-def save_geojson(gdf, crm, filename):
+def save_geojson(gdf, filename, crm, metrics):
 
     gdf["C"] = pd.Series(crm)
     dis = gdf.dissolve("C", aggfunc='sum')
     dis.reset_index(inplace = True)
 
     target = dis["pop"].sum() / dis.shape[0]
-    dis["frac"] = dis["pop"] / target
+    dis["frac"] = (dis["pop"] / target).map('{:.03f}'.format)
 
     dis = dis[["C", "a", "frac", "geometry", "pop"]]
+
+    dis["a"] *= 3.8610216e-7 # m2 to mi2
+    dis["a"] = dis["a"].astype(int)
+    dis.rename(columns = {"C" : "ID", "a" : "Area [sq mi]", "pop" : "Population", "frac" : "Pop./Target"}, inplace = True)
+
+    for k, v in metrics.items(): dis[k] = pd.Series(v).map('{:.03f}'.format)
+
     dis.crs = gdf.crs
     dis = dis.to_crs(epsg = 4326)
     

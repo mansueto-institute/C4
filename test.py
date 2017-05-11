@@ -148,11 +148,12 @@ def main(state, seed, method, niter, nloops, tol, init, write,
     elif not print_init: continue
     
     crm = u.cell_region_map()
-    if i == nloops and u.get_best_solution(): crm = u.get_best_solution()
+    if i == nloops and u.get_best_solution():
+        crm = u.get_best_solution()
 
     for s in shading:
       style = "" if len(shading) == 1 else "_{}".format(s)
-      plot_map(gdf, "res/{}/i{:03d}{}.pdf".format(write, i, style),
+      plot_map(gdf, "res/{}/i{:03d}{}.png".format(write, i, style),
                crm = crm, hlt = u.border_cells(True if "ext" in borders else False) if borders else None, shading = s,
                ring = ring_df(u, (ring or s == "density")),
                circ = circ_df(u, circ), point = point_df(u, point), legend = verbose)
@@ -162,7 +163,8 @@ def main(state, seed, method, niter, nloops, tol, init, write,
 
     print("Completed iteration ::", i)
 
-  save_geojson(gdf, crm, "res/{}/final.geojson".format(write))
+  save_geojson(gdf, "res/{}/final.geojson".format(write), crm,
+               metrics = {v : u.get_objectives(pycl_methods[k]) for k, v in pycl_formal.items()})
 
 
 if __name__ == "__main__":

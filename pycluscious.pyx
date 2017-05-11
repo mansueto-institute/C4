@@ -35,7 +35,9 @@ cdef extern from "Cluscious.h" namespace "Cluscious" :
         Region() except + 
         Region(int) except +
         Region(int, Cell*) except + 
+        int id
         double xctr, yctr
+        double obj(ObjectiveMethod)
 
     cdef cppclass Universe:
         Universe() except + 
@@ -133,6 +135,10 @@ cdef class region:
     cdef Region c_region # hold a C++ instance which we're wrapping
     def __cinit__(self, id, x, y = None):
         self.c_region = Region(id)
+
+    property id:
+        def __get__(self): return self.c_region.id
+        def __set__(self, id): self.c_region.id = id
 
     property xctr:
         def __get__(self): return self.c_region.xctr
@@ -255,6 +261,8 @@ cdef class universe:
     def oiterate(self, int om_i = 0, int niter = 1, float tol = 0.05, int seed = 0, int reg = -1, int verbose = 0):
         self.c_univ.oiterate(ObjectiveMethod(om_i), niter, tol, seed, reg, verbose)
 
+    def get_objectives(self, int om_i):
+        return {r.id : r.obj(ObjectiveMethod(om_i)) for r in self.c_univ.regions}
 
     property pop:
         def __get__(self): return self.c_univ.pop
