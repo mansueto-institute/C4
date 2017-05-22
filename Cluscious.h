@@ -87,11 +87,16 @@ namespace Cluscious {
   typedef std::vector<double>::const_iterator CoordIterator;
   typedef Miniball::Miniball <Miniball::CoordAccessor<PointIterator, CoordIterator> > MB;
 
-  const double VOR_SCALE = 1e4;
+  const double VOR_SCALE = 1e1;
 
   bool pop_compare(Region* r1, Region* r2);
   bool id_compare(Region* r1, Region* r2);
-  bool first_compare(std::pair<float, std::map<int, int> > a, std::pair<float, std::map<int, int> > b);
+
+  template <typename T1, typename T2>
+  bool compare_first(std::pair<T1, T2> a, std::pair<T1, T2> b);
+
+  template <typename T1, typename T2>
+  bool compare_second(std::pair<T1, T2> a, std::pair<T1, T2> b);
 
   bool cellp_set_len_compare(std::unordered_set<Cell*> s1, std::unordered_set<Cell*> s2);
 
@@ -176,6 +181,8 @@ namespace Cluscious {
       Region(int rid);
       Region(int rid, Cell*);
 
+      void reindex(int rid);
+
       void add_cell(Cell* c, bool b);
       void remove_cell(Cell* c, bool b);
 
@@ -229,6 +236,7 @@ namespace Cluscious {
 
       double eps_scc, x_scc, y_scc, r2_scc;
       double eps_lic, x_lic, y_lic, r2_lic;
+      void  reset_borders();
       float update_scc(Cell* add, Cell* sub, bool UPDATE);
       float update_lic(Cell* add, Cell* sub, bool UPDATE);
 
@@ -299,6 +307,7 @@ namespace Cluscious {
       std::vector<Node*>   nodes;
 
       void assign_to_zero();
+      void reboot(int seed, ObjectiveMethod om);
       bool split_region(int r = 0, float a = -1, bool connect = true);
       bool merge_regions(int rA, int rB);
       void split_line_init();
@@ -312,16 +321,18 @@ namespace Cluscious {
       
       float best_solution_val;
       float best_tolerance_val;
+      int   iterations_since_improvment;
       std::map<int, int> best_solution;
       // std::vector<std::pair<float, std::map<int, int> > > best_solutions;
       void update_best_solutions(ObjectiveMethod omethod, float tol);
       std::map<int, int> get_best_solution() { return best_solution; }
 
+      void load_best_solution() { load_partition(best_solution); }
       void load_partition(std::map<int, int> reg_map);
       void iterate(int niter, float tol, int r);
 
       float ALPHA;
-      void oiterate(ObjectiveMethod omethod, int niter, float tol, int seed, int r, int verbose);
+      void oiterate(ObjectiveMethod omethod, int niter, float tol, int conv_iter, int seed, int r, int verbose);
       bool greedy(Region* rit, ObjectiveMethod omethod, float tol, float best_move = 0, bool random = false, int r = -1, bool verbose = false);
       bool greedy_evaluate(Region* r, Cell* b, float tol, ObjectiveMethod omethod, float& best_move, Cell*& b_opt_c, std::unordered_set<Cell*>& opt_strands, bool verbose = false);
 
@@ -338,7 +349,7 @@ namespace Cluscious {
       bool is_tabu_strand(std::unordered_set<Cell*> s) { for (auto c : s) if (is_tabu(c)) return true; return false;}
 
       size_t DESTRAND_MIN, DESTRAND_MAX;
-      void transfer_strand(std::unordered_set<Cell*>& strand);
+      bool transfer_strand(std::unordered_set<Cell*>& strand);
       int  destrand(int mini, size_t maxi);
 
 

@@ -1,5 +1,9 @@
+import os
 from netrc import netrc
-user, acct, passwd = netrc().authenticators("harris")
+
+if os.getenv("GMD_PASSWD") and os.getenv("GMD_USER"):
+  user, passwd = os.getenv("GMD_USER"), os.getenv("GMD_PASSWD")
+else: user, acct, passwd = netrc().authenticators("harris")
 
 import matplotlib as mpl
 mpl.use('Agg')
@@ -64,6 +68,8 @@ pycl_methods = {"reock"       : pycl.ObjectiveMethod.REOCK,
                 "exchange"    : pycl.ObjectiveMethod.EXCHANGE}
 
 pycl_formal  = {
+                "dist_a"      : "Distance to Areal Center",
+                "dist_p"      : "Distance to Pop. Center",
                 "reock"       : "Circumscribing Circles",
                 "inertia_a"   : "Moment of Inertia: Area",
                 "inertia_p"   : "Moment of Inertia: Pop.",
@@ -77,7 +83,7 @@ pycl_formal  = {
                 "harm_radius" : "Harmonic Radius",
                 "rohrbach"    : "Distance to Perimeter",
                 "exchange"    : "Exchange",
-                # "path_frac"   : "Path Fraction",
+                "path_frac"   : "Path Fraction",
                }
 
 
@@ -276,18 +282,19 @@ def plot_map(gdf, filename, crm, hlt = None, shading = "district", figsize = 10,
     ax.set_xlim([bounds[0] - 0.1 * xr, bounds[2] + 0.1 * xr])
     ax.set_ylim([bounds[1] - 0.1 * yr, bounds[3] + 0.1 * yr])
 
-    if label: ax.text(bounds[0] - 0.1*xr, bounds[1] - 0.1*yr, label, fontsize = 10)
+    if label: ax.text(bounds[0] - 0.16*xr, bounds[3] + 0.12*yr, label, fontsize = 10)
 
     ax.set_axis_off()
 
     if ring is not None:
       ring["C"] = ring.index
-      if shading == "density":
-        ring.plot(color = "black", ax = ax, linewidth = 2.5)
-        ring.plot(color = "white", ax = ax, linewidth = 0.7)
-      else:
+      if shading == "district":
         ring.plot("C", categorical = True, cmap = "nipy_spectral",  ax = ax, linewidth = 3)
         ring.plot(color = "white", ax = ax, linewidth = 1)
+      else:
+        ring.plot(color = "black", ax = ax, linewidth = 2.5)
+        ring.plot(color = "white", ax = ax, linewidth = 0.7)
+
 
     if circ is not None:
       # circ["C"] = circ.index
@@ -333,7 +340,8 @@ def save_geojson(gdf, filename, crm, usps = None, metrics = None):
     dis["a"] = dis["a"].astype(int)
     dis.rename(columns = {"C" : "ID", "a" : "Area [sq mi]", "pop" : "Population", "frac" : "Pop./Target"}, inplace = True)
 
-    for k, v in metrics.items(): dis[k] = pd.Series(v).map('{:.03f}'.format)
+    for k, v in metrics.items():
+      dis[k] = pd.Series(v).map('{:.03f}'.format)
 
     for el in elections:
       dis["Party " + el] = "R"
