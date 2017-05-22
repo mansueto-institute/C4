@@ -308,22 +308,41 @@ def plot_map(gdf, filename, crm, hlt = None, shading = "district", figsize = 10,
     plt.close('all')
 
 
-def save_geojson(gdf, filename, crm, metrics):
+def save_geojson(gdf, filename, crm, usps = None, metrics = None):
 
     gdf["C"] = pd.Series(crm)
+
+    elections, vote_columns = [], []
+    if usps and os.path.exists("el/{}_votes.csv".format(usps.lower())):
+      votes = pd.read_csv("el/{}_votes.csv".format(usps.lower()), index_col = "rn")
+      votes = votes.filter(regex = '[DR][0-9]{2}', axis = 1)
+
+      gdf = gdf.join(votes)
+      vote_columns = list(votes.columns)
+      elections = set([el[1:] for el in votes.columns])
+
     dis = gdf.dissolve("C", aggfunc='sum')
     dis.reset_index(inplace = True)
 
     target = dis["pop"].sum() / dis.shape[0]
     dis["frac"] = (dis["pop"] / target).map('{:.03f}'.format)
 
-    dis = dis[["C", "a", "frac", "geometry", "pop"]]
+    dis = dis[["C", "a", "frac", "geometry", "pop"] + vote_columns]
 
     dis["a"] *= 3.8610216e-7 # m2 to mi2
     dis["a"] = dis["a"].astype(int)
     dis.rename(columns = {"C" : "ID", "a" : "Area [sq mi]", "pop" : "Population", "frac" : "Pop./Target"}, inplace = True)
 
     for k, v in metrics.items(): dis[k] = pd.Series(v).map('{:.03f}'.format)
+
+    for el in elections:
+      dis["Party " + el] = "R"
+      dis.loc[dis["D" + el] > dis["R" + el], "Party " + el] = "D"
+
+      dis["D" + el + " Share"] = (dis["D" + el] / (dis["D" + el] + dis["R" + el])).map('{:.03f}'.format) 
+      dis["R" + el + " Share"] = (dis["R" + el] / (dis["D" + el] + dis["R" + el])).map('{:.03f}'.format) 
+
+    if elections: dis.rename(columns = {v : v + " Votes" for v in vote_columns}, inplace = True)
 
     dis.crs = gdf.crs
     dis = dis.to_crs(epsg = 4326)
