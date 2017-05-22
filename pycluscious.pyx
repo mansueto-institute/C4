@@ -69,6 +69,7 @@ cdef extern from "Cluscious.h" namespace "Cluscious" :
         void add_cell_to_region(int cid, int rid)
 
         void assign_to_zero() except +
+        void reboot(int, ObjectiveMethod) except +
         int  split_region(int, float) except +
         int  merge_regions(int, int) except +
         void split_line_init() except +
@@ -81,11 +82,12 @@ cdef extern from "Cluscious.h" namespace "Cluscious" :
         void trim_graph(float max_frac)
         void grow_kmeans(int popgrow)
         void grow_random(int s)
+        void load_best_solution()
         void load_partition(map[int, int] rmap)
         void iterate(int, float, int)
         int  destrand(int, int)
 
-        void oiterate(ObjectiveMethod, int, float, int, int, int);
+        void oiterate(ObjectiveMethod, int, float, int, int, int, int);
 
         void iterate_power(float, int, int)
 
@@ -172,6 +174,9 @@ cdef class universe:
     def assign_to_zero(self):
         self.c_univ.assign_to_zero()
 
+    def reboot(self, int s, int om_i):
+        self.c_univ.reboot(s, ObjectiveMethod(om_i))
+
     def split_region(self, int r, float a = -1):
         return self.c_univ.split_region(r, a)
 
@@ -237,6 +242,9 @@ cdef class universe:
     def grow_random(self, int s = 0):
         self.c_univ.grow_random(s)
 
+    def load_best_solution(self):
+        self.c_univ.load_best_solution()
+
     def load_partition(self, rmap):
         if type(rmap) is dict:
           self.c_univ.load_partition(rmap)
@@ -258,8 +266,8 @@ cdef class universe:
     def iterate(self, int niter = 1, float tol = 0.05, int r = -1):
         self.c_univ.iterate(niter, tol, r)
 
-    def oiterate(self, int om_i = 0, int niter = 1, float tol = 0.05, int seed = 0, int reg = -1, int verbose = 0):
-        self.c_univ.oiterate(ObjectiveMethod(om_i), niter, tol, seed, reg, verbose)
+    def oiterate(self, int om_i = 0, int niter = 1, float tol = 0.05, int conv_iter = 0, int seed = 0, int reg = -1, int verbose = 0):
+        self.c_univ.oiterate(ObjectiveMethod(om_i), niter, tol, conv_iter, seed, reg, verbose)
 
     def get_objectives(self, int om_i):
         return {r.id : r.obj(ObjectiveMethod(om_i)) for r in self.c_univ.regions}
@@ -274,7 +282,7 @@ cdef class universe:
         def __get__(self): return self.c_univ.ncells
 
     property nregions:
-        def __get__(self): return self.c_univ.nregions
+        def __get__(self): return self.c_univ.regions.size()
 
     property cells:
         def __get__(self):

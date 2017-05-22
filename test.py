@@ -3,12 +3,15 @@
 import argparse
 
 import sys, os, re, math
-from random import randint
+from random import randint, choice
 
 import pycluscious as pycl
 from pycluscious_helper import *
 
 import random
+import operator
+
+import time
 
 def load_data(state, method):
 
@@ -61,10 +64,7 @@ def load_data(state, method):
   print("Connecting and trimming graph.")
   u.connect_graph()
   u.trim_graph()
-
-  if method == "path_frac":
-    print("Caching Dijkstra.")
-    u.build_dijkstra_graph()
+  u.build_dijkstra_graph()
 
   print("Finished preparing the data.")
 
@@ -76,12 +76,12 @@ def ring_df(u, ring = True):
 
   return gpd.GeoDataFrame(geometry=[LineString(u.get_point_ring(d)) for d in range(u.nregions)])
 
-def circ_df(u, circ = True):
+def circle_df(u, circle = True):
 
-  if not circ: return None
+  if not circle: return None
 
   return gpd.GeoDataFrame(geometry=[Point(c[0][0], c[0][1]).buffer(c[1] if math.isfinite(c[1]) and c[1] > 0 else 1)
-                                    for c in [u.get_circle_coords(r, pycl_circles[circ])
+                                    for c in [u.get_circle_coords(r, pycl_circles[circle])
                                     for r in range(u.nregions)]])
 
 def point_df(u, point = True):
@@ -93,9 +93,9 @@ def point_df(u, point = True):
                                     for r in range(u.nregions)]])
 
 
-def main(state, seed, method, niter, nloops, tol, init, write, 
+def main(state, seed, method, ncycles, niter, nloops, tol, conv_iter, init, write, 
          grasp, allow_trades, destrand_inputs, destrand_min, destrand_max, tabu_length,
-         circ, ring, point, print_init, no_plot, shading, borders, verbose):
+         circle, ring, point, print_init, no_plot, shading, borders, verbose):
 
   u, gdf = load_data(state, method)
 
@@ -103,7 +103,7 @@ def main(state, seed, method, niter, nloops, tol, init, write,
 
   u.RANDOM       = grasp 
   u.TRADE        = allow_trades
-  u.TABU_LENGTH  = tabu_length
+  u.TABU_LENGTH  = u.nregions * tabu_length
   u.DESTRAND_MIN = destrand_min
   u.DESTRAND_MAX = destrand_max
 
@@ -141,30 +141,39 @@ def main(state, seed, method, niter, nloops, tol, init, write,
 
   ens_dir("res/{}".format(write))
 
+  for c in range(ncycles):
 
-  for i in range(0, nloops+1):
+    if ncycles > 1:
+      write_cycle = write + "/c{:03d}".format(c)
+      ens_dir("res/{}".format(write_cycle))
+      if c: u.reboot(seed, pycl_methods[method])
+    else: write_cycle = write
 
-    if i: u.oiterate(pycl_methods[method], niter = niter, tol = tol, seed = seed, verbose = verbose)
-    elif not print_init: continue
-    
-    crm = u.cell_region_map()
-    if i == nloops and u.get_best_solution():
-        crm = u.get_best_solution()
+    for i in range(0, nloops+1):
 
-    for s in shading:
-      style = "" if len(shading) == 1 else "_{}".format(s)
-      plot_map(gdf, "res/{}/i{:03d}{}.png".format(write, i, style),
-               crm = crm, hlt = u.border_cells(True if "ext" in borders else False) if borders else None, shading = s,
-               ring = ring_df(u, (ring or s == "density")),
-               circ = circ_df(u, circ), point = point_df(u, point), legend = verbose)
+      if i: u.oiterate(pycl_methods[method], niter = niter, tol = tol, conv_iter = conv_iter, seed = seed, verbose = verbose)
+      elif not print_init: continue
+      
+      if i == nloops and u.get_best_solution(): u.load_best_solution()
 
-    with open ("res/{}/i{:03d}.csv".format(write, i), "w") as out:
-      for k, v in crm.items(): out.write("{},{}\n".format(k, v))
+      crm = u.cell_region_map()
 
-    print("Completed iteration ::", i)
+      for s in shading:
+        style = "" if len(shading) == 1 else "_{}".format(s)
+        plot_map(gdf, "res/{}/i{:03d}{}.pdf".format(write_cycle, i, style), label = pycl_formal[method] if i else init.capitalize(),
+                 crm = crm, hlt = u.border_cells(True if "ext" in borders else False) if borders else None, shading = s,
+                 ring = ring_df(u, (ring or s == "density")),
+                 circ = circle_df(u, circle), point = point_df(u, point), legend = verbose)
 
-  save_geojson(gdf, "res/{}/final.geojson".format(write), crm,
-               metrics = {v : u.get_objectives(pycl_methods[k]) for k, v in pycl_formal.items()})
+      with open ("res/{}/i{:03d}.csv".format(write_cycle, i), "w") as out:
+        for k, v in crm.items(): out.write("{},{}\n".format(k, v))
+
+      print(write_cycle, ":: completed iteration", i)
+
+    save_geojson(gdf, "res/{}/final.geojson".format(write_cycle), crm,
+                 metrics = {v : u.get_objectives(pycl_methods[k]) for k, v in pycl_formal.items()})
+
+
 
 
 if __name__ == "__main__":
@@ -180,8 +189,10 @@ if __name__ == "__main__":
   parser.add_argument("-m", "--method",    default = "dist_a", choices = pycl_methods, type = str)
 
   # Looping parameters.
-  parser.add_argument("-l", "--nloops",    default = 1, type = int)
-  parser.add_argument("-n", "--niter",     default = 100, type = int, help = "Iterations per loop.")
+  parser.add_argument("-c", "--ncycles",   default = 1, type = int, help = "Number of reboots (split/merge)")
+  parser.add_argument("-l", "--nloops",    default = 1, type = int, help = "Loops: number of times to run iter")
+  parser.add_argument("-n", "--niter",     default = 100, type = int, help = "Max iterations per loop.")
+  parser.add_argument("--conv_iter",       default = 0, type = int, help = "Stop after X without improvement.")
   parser.add_argument("-t", "--tol",       default = 0.02, type = float)
 
   # Metaheuristic and minimum configuration
@@ -194,7 +205,7 @@ if __name__ == "__main__":
 
   # Plotting options.
   parser.add_argument("-r", "--ring",      action  = "store_true")
-  parser.add_argument("-c", "--circ",      default = "", choices = pycl_circles, type = str)
+  parser.add_argument("-o", "--circle",    default = "", choices = pycl_circles, type = str)
   parser.add_argument("-p", "--point",     default = None, choices = pycl_circles, type = str)
   parser.add_argument("--shading",         default = ["target"], nargs = "+")
   parser.add_argument("--no_plot",         action  = "store_true")

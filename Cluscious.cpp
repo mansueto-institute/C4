@@ -266,7 +266,17 @@ namespace Cluscious {
   bool Cell::neighbors_connected(bool QUEEN = false, bool FAST = false) {
 
     std::vector<std::unordered_set<Cell*> > graphs;
-    return (neighbor_sets(graphs, false, QUEEN, FAST) == 1);
+    int nsets = neighbor_sets(graphs, false, QUEEN, FAST);
+    // if (nsets != 1) {
+    //   cout << "Called for " << id << " (r=" << region << ")" << endl;
+    //   for (auto g : graphs) {
+    //     cout << "  Graph : ";
+    //     for (auto ci : g) cout << ci->id << "(" << ci->region << ") ";
+    //     cout << endl;
+    //   }
+    // }
+
+    return nsets == 1;
 
   }
 
@@ -485,24 +495,33 @@ namespace Cluscious {
 
   Region::Region() 
     : id(0), pop(0), ncells(0), area(1e-6), xctr(0), yctr(0), xpctr(0), ypctr(0), sumw_border(0),
-      Ip(0), has_topo(false), eps_scc(10), x_scc(0), y_scc(0), r2_scc(0),
+      Ip(0), has_topo(false), eps_scc(1e7), x_scc(0), y_scc(0), r2_scc(0),
       eps_lic(2), x_lic(0), y_lic(0), r2_lic(std::numeric_limits<double>::infinity()),
       x_pow(0), y_pow(0), r2_pow(0)
   {}
 
   Region::Region(int rid) 
     : id(rid), pop(0), ncells(0), area(1e-6), xctr(0), yctr(0), xpctr(0), ypctr(0), sumw_border(0),
-      Ip(0), has_topo(false), eps_scc(10), x_scc(0), y_scc(0), r2_scc(0), 
+      Ip(0), has_topo(false), eps_scc(1e7), x_scc(0), y_scc(0), r2_scc(0), 
       eps_lic(2), x_lic(0), y_lic(0), r2_lic(std::numeric_limits<double>::infinity()),
       x_pow(0), y_pow(0), r2_pow(0)
   {}
 
   Region::Region(int rid, Cell* c) 
     : id(rid), pop(0), ncells(0), area(1e-6), xctr(c->x), yctr(c->y), xpctr(c->x), ypctr(c->y), sumw_border(0),
-      Ip(0), has_topo(false), eps_scc(10), x_scc(0), y_scc(0), r2_scc(0),
+      Ip(0), has_topo(false), eps_scc(1e7), x_scc(0), y_scc(0), r2_scc(0),
       eps_lic(2), x_lic(0), y_lic(0), r2_lic(std::numeric_limits<double>::infinity()),
       x_pow(0), y_pow(0), r2_pow(0)
   { add_cell(c, true); }
+
+
+  void Region::reindex(int rid) {
+
+    id = rid;
+    for (auto c : cells) {
+      c->region = rid;
+    }
+  }
 
 
   void Region::add_cell(Cell* c, bool UPDATE_CTR = true) {
@@ -760,8 +779,7 @@ namespace Cluscious {
 
   std::vector<std::pair<float, float> > Region::get_point_ring() {
 
-    if (!node_ring.size()) make_ring();
-    // make_ring();
+    make_ring();
 
     std::vector<std::pair<float, float> > point_ring;
 
@@ -1135,6 +1153,34 @@ namespace Cluscious {
 
   }
 
+
+  void Region::reset_borders() { 
+
+    int_borders.clear();
+    ext_borders.clear();
+
+    area = 0;
+    sumw_border = 0;
+    for (auto c : cells) {
+      area += c->area;
+
+      if (c->is_univ_edge) {
+        sumw_border += c->edge_perim;
+        int_borders.insert(c);
+      }
+
+      for (const auto n : c->nm) {
+        if (n.first->region != id) {
+          sumw_border += n.second;
+          int_borders.insert(c);
+          ext_borders.insert(n.first);
+        }
+      }
+    }
+
+  }
+
+
   float Region::update_lic(Cell* add = 0, Cell* sub = 0, bool UPDATE = false) { 
 
     if (!node_ring.size()) {
@@ -1248,7 +1294,8 @@ namespace Cluscious {
   Universe::Universe() {}
   Universe::Universe(int n) 
     : pop(0), rcount(0), ncells(0), nregions(n), total_iterations(0), loaded_topo(false), 
-    best_solution_val(0), best_tolerance_val(1), ALPHA(4), RANDOM(false), TRADE(true), TABU_LENGTH(0),
+    best_solution_val(0), best_tolerance_val(1), iterations_since_improvment(0), 
+    ALPHA(4), RANDOM(false), TRADE(true), TABU_LENGTH(0),
     DESTRAND_MIN(2), DESTRAND_MAX(15)
   {
 
@@ -1706,10 +1753,11 @@ namespace Cluscious {
           if (nsets != 1 && !strands.size()) continue;
           
           if (strands.size()) ntransfers++;
-          transfer_strand(strands);
-          regions[b->region]->remove_cell(b);
-          rA->add_cell(b);
-          moved = true;
+          if (transfer_strand(strands)) {
+            regions[b->region]->remove_cell(b);
+            rA->add_cell(b);
+            moved = true;
+          }
           break;
         }
       }
@@ -1834,15 +1882,8 @@ namespace Cluscious {
 
     load_partition(best_soln);
 
-    if (loaded_topo) {
-      for (auto r : regions) {
-        r->has_topo = true;
-        r->make_ring();
-        r->update_lic(0, 0, true);
-      }
-    }
-
   }
+
   
   void Universe::grow_random(int seed) {
 
@@ -1897,11 +1938,13 @@ namespace Cluscious {
     for (auto& c : cells) 
       regions[reg_map[c->id]]->add_cell(c);
 
+    for (auto r : regions) r->reset_borders();
     if (loaded_topo) {
       for (auto r : regions) {
         r->has_topo = true;
         r->make_ring();
         r->update_lic(0, 0, true);
+        r->update_scc(0, 0, true);
       }
     }
   }
@@ -1917,6 +1960,7 @@ namespace Cluscious {
 
   bool Universe::merge_regions(int rA, int rB) {
 
+    if (rA > rB) std::swap(rA, rB);
     if (rA < 0 || rA >= int(regions.size()) || 
         rB < 0 || rB >= int(regions.size()))
       return false;
@@ -1924,23 +1968,72 @@ namespace Cluscious {
     for (auto cB : regions[rB]->cells)
       regions[rA]->add_cell(cB);
 
-    delete regions[rB];
+    if (rB != int(regions.size())-1) {
+      std::swap(regions[rB], regions.back());
+      regions[rB]->reindex(rB);
+    }
+
+    delete regions.back();
     regions.pop_back();
 
+    cout << "Just merged regions, " << rA << " and " << rB << endl;
+
     return true;
+
+  }
+
+  void Universe::reboot(int seed, ObjectiveMethod om) {
+
+    best_tolerance_val = 1;
+    best_solution_val = 0;
+    iterations_since_improvment = 0;
+
+    std::vector<std::pair<int, float> > obj_reg;
+    for (auto r : regions) 
+      obj_reg.push_back(std::make_pair(r->id, r->obj(om)));
+    std::sort(obj_reg.begin(), obj_reg.end(), compare_second<int, float>);
+    for (auto sr : obj_reg) cout << "sr=" << sr.first << " " << sr.second << "  obj" << int(om) << endl;
+
+    for (auto sr : obj_reg) if (split_region(sr.first)) break;
+
+    mersenne.seed(seed);
+    int mra = mersenne() % regions.size(); // random region
+
+    std::unordered_set<Cell*>::iterator cit = regions[mra]->ext_borders.begin();
+    std::advance(cit, mersenne() % regions[mra]->ext_borders.size());
+    int mrb = (*cit)->region; // random neighbor.
+
+    merge_regions(mra, mrb);
+
+    int temp_tabu = TABU_LENGTH;
+    TABU_LENGTH = 100;
+    while (destrand(3, 100)) continue;
+    TABU_LENGTH = temp_tabu;
+
+
+    assert(regions.size() == nregions);
 
   }
 
   bool Universe::split_region(int rA, float angle, bool connect) {
 
     int rB = -1;
-    if (rA < 0 || rA >= int(regions.size())) return false;
+    if (rA < 0 || rA >= int(regions.size())) {
+      cout << "Region " << rA << " not available to split!" << endl;
+      return false;
+    }
+
+    cout << "Splitting region " << rA << endl;
 
     int seats = lrint(regions[rA]->pop / target);
-    if (seats <= 1) return false;
 
-    int sA = seats/2;
-    int sB = seats - sA;
+    float sA = seats/2;
+    float sB = seats - sA;
+
+    // For splitting qua re-initialization, 
+    // we want to allow fractional populations.
+    if (seats < 2) sA = sB = 0.5; 
+
     int nB = 1.*regions[rA]->pop * sB / seats;
 
     std::pair<float, float> nvec;
@@ -1964,7 +2057,7 @@ namespace Cluscious {
       regions.push_back(new Region(regions.size(), opt_cell));
       rB = regions.size()-1;
     } else {
-      cout << "Major problem -- no opt cell found!!!" << endl;
+      cout << "Major problem -- no opt cell found to split region " << rA << "!!!" << endl;
       return false;
     }
 
@@ -1994,9 +2087,10 @@ namespace Cluscious {
 
       if (opt_cell) {
         if (opt_strands.size()) cout << "Transferring a strand of size = " << opt_strands.size() << endl;
-        transfer_strand(opt_strands);
-        regions[rA]->remove_cell(opt_cell);
-        regions[rB]->add_cell(opt_cell);
+        if (transfer_strand(opt_strands)) {
+          regions[rA]->remove_cell(opt_cell);
+          regions[rB]->add_cell(opt_cell);
+        }
       } else {
         cout << "Major problem -- no opt cell found!!!" << endl;
         cout << "ra nIB=" << regions[rA]->int_borders.size() << endl;
@@ -2007,6 +2101,9 @@ namespace Cluscious {
     }
 
     if (fabs(regions[rA]->pop/sA - regions[rB]->pop/sB) > 0.10 * target) {
+      cout << "Warning :: remerging due to imbalanced populations: "
+           << regions[rA]->pop/target/sA << " and " << regions[rB]->pop/sB/target
+           << endl;
       merge_regions(rA, rB);
       return false;
     }
@@ -2266,7 +2363,7 @@ namespace Cluscious {
 
     if (verbose) {
       cout << "r_lic " << (add?"A":"") << (sub?"S":"") 
-           << " : " << sqrt(r2_mod) << "  area: " << amod << "  ehrenburg: " << ehrenburg_mod << endl;
+           << " : r=" << sqrt(r2_mod) << "  area: " << amod << "  ehrenburg: " << ehrenburg_mod << endl;
     }
 
     // return ehrenburg_mod - ehrenburg_nom; // Higher number is improving.
@@ -2414,7 +2511,7 @@ namespace Cluscious {
 
   double Region::obj_path_frac(Cell* add, Cell* sub, bool verbose) {
 
-    if (verbose) cout << "In obj_path_frac..." << endl;
+    // if (verbose) cout << "In obj_path_frac..." << endl;
 
     // Yes, longs are necessary....
     // long long num_nom = 0, den_nom= 0;
@@ -2474,11 +2571,12 @@ namespace Cluscious {
       }
     }
 
-    // if (verbose) cout << "Nom fraction " << 1.*num_nom/den_nom << endl;
-    if (verbose) cout << "Path fraction " << 1.*num_mod/den_mod << endl;
-
+    assert(num_mod >=0 && num_mod <= den_mod);
     double frac_mod = 1. * num_mod / den_mod;
     // double frac_nom = 1. * num_nom / den_nom;
+
+    // if (verbose) cout << "Nom fraction " << 1.*num_nom/den_nom << endl;
+    if (verbose) cout << "Path fraction " << frac_mod << endl;
 
     // return frac_mod - frac_nom;
     return frac_mod; 
@@ -2615,22 +2713,29 @@ namespace Cluscious {
     float omod = 0; //, onom = 0;
     for (auto c : cells) {
       // onom += c->area / c->dist(xctr, yctr);
-      omod += c->area / c->dist(xmod, ymod);
+      
+      // The average of 1/r isn't the same as
+      // the average of 1/rctr, esp. near the center.
+      // Take the cell 'isoarea diameter' as a minimum.
+      float d2_c = c->d2(xmod, ymod);
+      if (d2_c < 2 * c->area/M_PI) d2_c = 2 * c->area/M_PI;
+      omod += c->area / sqrt(d2_c);
     }
 
     if (add) omod += add->area / add->dist(xmod, ymod);
     if (sub) omod -= sub->area / sub->dist(xmod, ymod);
 
-    // onom = sqrt(area/(4 * M_PI)) / (area/onom);
-    omod = sqrt(amod/(4 * M_PI)) / (amod/omod);
+    float obj = sqrt(amod/M_PI)/2 / (amod/omod);
+    // float obj = (amod/omod) / (sqrt(amod/M_PI)/2);
 
     if (verbose) {
       cout << "harm radius " << "(" << (add ? "A" : "") << (sub ? "S" : "") << ") :: "
-           << "(x, y)=(" << xmod << ", " << ymod << ")    omod=" << omod << endl;
+           << "amod=" << amod << " area=" << area << "  R/2=" << sqrt(amod/M_PI)/2 << "  HR=" << amod/omod << "  "
+           << "(x, y)=(" << xmod << ", " << ymod << ")    obj=" << obj << endl;
     }
 
     // return omod - onom;
-    return omod;
+    return obj;
   
   }
 
@@ -2781,20 +2886,24 @@ namespace Cluscious {
     return (x-xR)*(x-xR) + (y-yR)*(y-yR);
   }
 
-  void Universe::transfer_strand(std::unordered_set<Cell*>& strand) {
+  bool Universe::transfer_strand(std::unordered_set<Cell*>& strand) {
 
     // if (strand.size()) cout << "Removing strand of size " << strand.size() << " consisting of :: ";
     // for (auto s : strand) cout << s->id << " ";
     // if (strand.size()) cout << endl;
 
+    bool queen = false;
+    int itercount = 0;
     while (strand.size()) {
 
       bool removed = false;
       for (auto c : strand) {
 
-        std::unordered_set<int> nei_reg = c->neighbor_regions();
+        if (!c->neighbors_connected(queen)) continue;
+
         // Move in an order that preserves contiguity.
-        if (nei_reg.size() && c->neighbors_connected()) { 
+        std::unordered_set<int> nei_reg = c->neighbor_regions(queen);
+        if (nei_reg.size()) { 
           regions[c->region]->remove_cell(c); 
           regions[*nei_reg.begin()]->add_cell(c);
           strand.erase(c);
@@ -2805,10 +2914,23 @@ namespace Cluscious {
       }
 
       if (!removed) {
-        cout << "WARNING :: strand not correctly removed!" << endl;
-        break;
+        cout << "WARNING (" << itercount << ") :: strand not correctly removed from " << (*strand.begin())->region << " :: ";
+        if (!queen) {
+          cout << "switching to queen contiguity." << endl;
+          queen = true;
+        } else {
+          cout << "left ";
+          for (auto c : strand) cout << c->id << " ";
+          cout << endl;
+
+          return false;
+        }
       }
+
+      itercount++;
     }
+
+    return true;
   }
 
   int Universe::destrand(int min = 1, size_t max = 1e9) {
@@ -2855,9 +2977,10 @@ namespace Cluscious {
 
     float curr_obj(0);
     // As in greedy, this is constant, but we want a 0 baseline.
-    if (om == ObjectiveMethod::HULL_A    || om == ObjectiveMethod::POLSBY    ||
+    if (om == ObjectiveMethod::HULL_A    || om == ObjectiveMethod::HULL_P || 
         om == ObjectiveMethod::INERTIA_A || om == ObjectiveMethod::INERTIA_P ||
-        om == ObjectiveMethod::ROHRBACH) {
+        om == ObjectiveMethod::ROHRBACH  || om == ObjectiveMethod::EHRENBURG ||
+        om == ObjectiveMethod::POLSBY) {
       curr_obj = ir->obj(om);
     }
 
@@ -2916,6 +3039,9 @@ namespace Cluscious {
     // int. cells will be removed as someone else's external.
     if (random) { // Random greedy is grasp.
 
+      float r_base = rit->obj(omethod);
+      if (verbose) cout << "GRASP Region " << rit->id << " beat :: " << r_base << endl;
+
       std::vector<std::unordered_set<Cell*>::iterator> ebv(rit->ext_borders.size());
       std::iota(ebv.begin(), ebv.end(), rit->ext_borders.begin());
       std::shuffle(ebv.begin(), ebv.end(), mersenne);
@@ -2924,7 +3050,14 @@ namespace Cluscious {
 
         Cell* b = *ebit;
         if (r >= 0 && b->region != r && rit->id != r) continue;
-        if (greedy_evaluate(rit, b, tol, omethod, best_move, b_opt_c, opt_strands, verbose)) break;
+        greedy_evaluate(rit, b, tol, omethod, best_move, b_opt_c, opt_strands, verbose);
+        if (best_move > r_base) {
+          if (verbose) cout << "    positive -- done :: " << best_move-r_base << endl;
+          break;
+        } else {
+          if (verbose) cout << "    value was " << best_move-r_base << endl;
+          b_opt_c = 0;
+        }
       }
 
     } else {
@@ -2943,13 +3076,14 @@ namespace Cluscious {
       int rem_reg = b_opt_c->region;
 
       // up to four cells....
-      transfer_strand(opt_strands);
+      if (transfer_strand(opt_strands)) {
 
-      if (verbose) cout << "Moving cell " << b_opt_c->id << " from region " << rem_reg << " to " << rit->id << endl;
-      regions[rem_reg]->remove_cell(b_opt_c);
-      rit->add_cell(b_opt_c);
+        if (verbose) cout << "Moving cell " << b_opt_c->id << " from region " << rem_reg << " to " << rit->id << endl;
+        regions[rem_reg]->remove_cell(b_opt_c);
+        rit->add_cell(b_opt_c);
 
-      set_tabu(b_opt_c);
+        set_tabu(b_opt_c);
+      }
 
       return true;
 
@@ -3010,7 +3144,7 @@ namespace Cluscious {
   }
 
 
-  void Universe::oiterate(ObjectiveMethod omethod, int niter = 1, float tol = 0.05, int seed = 0, int r = -1, int verbose = 0) {
+  void Universe::oiterate(ObjectiveMethod omethod, int niter = 1, float tol = 0.05, int conv_iter = 0, int seed = 0, int r = -1, int verbose = 0) {
 
     if (r >= int(regions.size()))
       throw std::runtime_error(std::string("Cannot iterate over region -- there aren't that many!"));
@@ -3026,7 +3160,7 @@ namespace Cluscious {
 
         if (TRADE) trade(rit, 0, omethod, tol * 2);
 
-        float cut = RANDOM ? -0.01 : -1; // boost::numeric::bounds<float>::lowest();
+        float cut = RANDOM ? 0 : -1;
         greedy(rit, omethod, tol, cut, RANDOM, r, verbose > 1);
 
       }
@@ -3034,12 +3168,19 @@ namespace Cluscious {
       destrand(DESTRAND_MIN, DESTRAND_MAX);
 
       update_best_solutions(omethod, tol * 2);
+      if (conv_iter && iterations_since_improvment > conv_iter) {
+        cout << "Best now " << best_solution_val
+             << ", more than " << conv_iter << " iterations since improvement.  Returning." << endl;
+        break;
+      }
     }
 
     return;
   }
 
   void Universe::update_best_solutions(ObjectiveMethod omethod, float tol) {
+
+    iterations_since_improvment++;
 
     float spatial_obj = 0, pop_max_dtol = 0;
     for (auto rit : regions) {
@@ -3054,7 +3195,10 @@ namespace Cluscious {
       best_solution_val = spatial_obj;
       best_tolerance_val = pop_max_dtol;
       best_solution = cell_region_map();
-      cout << "Best solution now :: pop dtol=" << best_tolerance_val << "  spatial obj=" << best_solution_val << endl;
+      if (best_tolerance_val < tol) cout << "Best solution now :: " << best_solution_val << "  (tol=" << best_tolerance_val << ")" << endl;
+      else cout << "Tolerance now :: " << pop_max_dtol << endl;
+
+      iterations_since_improvment = 0;
     }
 
   }
@@ -3161,7 +3305,12 @@ namespace Cluscious {
 
   bool pop_compare(Region* r1, Region* r2) { return r1->pop < r2->pop; }
   bool id_compare(Region* r1, Region* r2) { return r1->id < r2->id; }
-  bool first_compare(std::pair<float, std::map<int, int> > a, std::pair<float, std::map<int, int> > b) { return a.first > b.first; }
+
+  template <typename T1, typename T2>
+  bool compare_first(std::pair<T1, T2> a, std::pair<T1, T2> b) { return a.first < b.first; }
+
+  template <typename T1, typename T2>
+  bool compare_second(std::pair<T1, T2> a, std::pair<T1, T2> b) { return a.second < b.second; }
 
   template <typename T>
   int sign(T x) { return (x > 0) - (x < 0); }
