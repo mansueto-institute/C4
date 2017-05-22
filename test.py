@@ -163,7 +163,7 @@ def main(state, seed, method, niter, nloops, tol, init, write,
 
     print("Completed iteration ::", i)
 
-  save_geojson(gdf, "res/{}/final.geojson".format(write), crm,
+  save_geojson(gdf, "res/{}/final.geojson".format(write), u.cell_region_map(), state,
                metrics = {v : u.get_objectives(pycl_methods[k]) for k, v in pycl_formal.items()})
 
 
