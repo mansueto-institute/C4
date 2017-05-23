@@ -3,9 +3,10 @@
 s=$1
 x=$2
 
-cyles=10
+cycles=10
 max_iter=10000
-shading="none"
+shading="target district"
+# shading="none"
 
 if [[ $x -eq 0 ]]; then ./run.py -s ${s} -i split -l0 --print_init -w ${s}/split/s000 --shading target district; fi
 
