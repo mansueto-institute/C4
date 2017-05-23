@@ -242,7 +242,7 @@ namespace Cluscious {
 
       double x_pow, y_pow, r2_pow;
 
-      void make_ring();
+      bool make_ring();
       void divert_ring_at_cell(Cell* c, bool CW);
       std::pair<std::pair<float, float>, float> get_circle_coords(RadiusType rt);
       std::vector<std::pair<float, float> > get_point_ring();

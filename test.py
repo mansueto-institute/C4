@@ -140,6 +140,7 @@ def main(state, seed, method, ncycles, niter, nloops, tol, conv_iter, init, writ
     sys.exit()
 
   ens_dir("res/{}".format(write))
+  ens_dir("res/json/")
 
   for c in range(ncycles):
 
@@ -169,6 +170,10 @@ def main(state, seed, method, ncycles, niter, nloops, tol, conv_iter, init, writ
         for k, v in crm.items(): out.write("{},{}\n".format(k, v))
 
       print(write_cycle, ":: completed iteration", i)
+
+    save_json("res/json/{}.json".format(write_cycle.replace("/", "_")),
+              state, pycl_short[method], write_cycle, gdf, crm = u.cell_region_map(),
+              metrics = {v : u.get_objectives(pycl_methods[k]) for k, v in pycl_short.items()})
 
     save_geojson(gdf, "res/{}/final.geojson".format(write_cycle), u.cell_region_map(), state,
                  metrics = {v : u.get_objectives(pycl_methods[k]) for k, v in pycl_formal.items()})
@@ -215,7 +220,8 @@ if __name__ == "__main__":
   args = parser.parse_args()
 
   if not args.write: args.write = "{}/{}/s{:03d}".format(args.state, args.method, args.seed)
-  if "all" in args.shading: args.shading = ["district", "target", "density"]
+  if "all" in [s.lower() for s in args.shading]: args.shading = ["district", "target", "density"]
+  if "none" in [s.lower() for s in args.shading]: args.shading = []
 
   if args.no_plot: shading = []
 

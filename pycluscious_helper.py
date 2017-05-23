@@ -30,10 +30,14 @@ from shapely.geometry import MultiPolygon, Polygon, Point, MultiLineString, Line
 
 import os, glob
 
+import json
+
 shapefile = "shapes/{}.shp"
 stateinfo = "shapes/{}_info"
 edge_file = "shapes/{}_edges"
 node_file = "shapes/{}_nodes"
+race_file = "demographic/{}_race.csv"
+vote_file = "demographic/{}_votes.csv"
 
 def ens_dir(f, quiet = False):
   if not os.path.isdir(f):
@@ -43,10 +47,12 @@ def ens_dir(f, quiet = False):
 def ens_data(usps): 
 
   ens_dir("shapes/")
+  ens_dir("demographic/")
   cache_stateinfo(usps)
   cache_shapefile(usps)
   cache_edge_file(usps)
   cache_node_file(usps)
+  cache_race_file(usps)
 
 
 import pycluscious as pycl
@@ -87,6 +93,26 @@ pycl_formal  = {
                }
 
 
+pycl_short  = {
+               "dist_a"      : "DistArea",
+               "dist_p"      : "DistPop",
+               "reock"       : "CircCircle",
+               "inertia_a"   : "InertiaArea",
+               "inertia_p"   : "InertiaPop",
+               "polsby"      : "IPQ",
+               "hull_a"      : "HullArea",
+               "hull_p"      : "HullPop",
+               "ehrenburg"   : "InscrCircle",
+               "axis_ratio"  : "AxisRatio",
+               "mean_radius" : "MeanRadius",
+               "dyn_radius"  : "DynamicRadius",
+               "harm_radius" : "HarmonicRadius",
+               "rohrbach"    : "DistPerimeter",
+               "exchange"    : "Exchange",
+               "path_frac"   : "PathFraction"
+              }
+
+
 pycl_circles = {"area"     : pycl.RadiusType.EQUAL_AREA, 
                 "area_pop" : pycl.RadiusType.EQUAL_AREA_POP, 
                 "circ"     : pycl.RadiusType.EQUAL_CIRCUMFERENCE, 
@@ -104,13 +130,13 @@ us_states = ["al", "ak", "az", "ar", "ca", "co", "ct", "de", "dc",
              "vt", "va", "wa", "wv", "wi", "wy"]
 
 
-def get_epsg (usps): return get_state_info(usps)["epsg"]
-def get_fips (usps): return get_state_info(usps)["fips"]
-def get_seats(usps): return get_state_info(usps)["seats"]
+def get_epsg (usps): return int(get_state_info(usps)["epsg"])
+def get_fips (usps): return int(get_state_info(usps)["fips"])
+def get_seats(usps): return int(get_state_info(usps)["seats"])
 
 def get_state_info(usps):
    
-   return pd.read_csv(stateinfo.format(usps) + ".csv").ix[0]
+   return pd.read_csv(stateinfo.format(usps.lower()) + ".csv").ix[0]
 
 
 def cache_stateinfo(usps, filename = None):
@@ -194,6 +220,34 @@ def cache_node_file(usps, filename = None):
 
    geo_ndf[ndf["nseq"] == 1][["nid", "geometry"]].to_file(filename + ".shp")
 
+
+def cache_race_file(usps, filename = None):
+
+  if not filename: filename = race_file.format(usps.lower())
+    
+  pd.read_sql("""SELECT
+                   rn.rn, d.state, d.county cid, d.tract,
+                   b01001_001e pop, b01001a_001e white,
+                   b01001b_001e black, b01001i_001e hispanic
+                 FROM census_tracts_2015 AS g
+                 JOIN states AS s ON
+                   g.state = s.fips
+                 JOIN acssf5y2015 AS d ON
+                   d.state  = g.state  AND
+                   d.county = g.county AND
+                   d.tract  = g.tract
+                 JOIN (SELECT state, county, tract,
+                              row_number() over (PARTITION BY state ORDER BY county, tract NULLS LAST) - 1 as rn
+                       FROM census_tracts_2015) rn ON
+                   g.state  = rn.state  AND
+                   g.county = rn.county AND
+                   g.tract  = rn.tract
+                 WHERE s.usps = UPPER('{}')
+                 ORDER BY d.state, d.county, d.tract;
+                 """.format(usps),
+                 con = psycopg2.connect(database = "census", user = user, password = passwd,
+                                        host = "saxon.harris.uchicago.edu", port = 5432),
+                 index_col = "rn").to_csv(filename)
 
 
 
@@ -315,13 +369,101 @@ def plot_map(gdf, filename, crm, hlt = None, shading = "district", figsize = 10,
     plt.close('all')
 
 
+def save_json(filename, usps, method, uid, gdf, crm, metrics):
+
+    of = open(filename, 'w')
+
+    js = {"USPS" : usps.upper(), "FIPS" : get_fips(usps), 
+          "Method" : method, "Seats" : get_seats(usps),
+          "UID" : uid, "Score" : sum(v for v in metrics[method].values())/get_seats(usps)
+         }
+
+    gdf["C"] = pd.Series(crm)
+
+    elections = []
+    if usps and os.path.exists(vote_file.format(usps.lower())):
+      votes = pd.read_csv(vote_file.format(usps.lower()), index_col = "rn")
+      votes = votes.filter(regex = '[DR][0-9]{2}', axis = 1)
+
+      gdf = gdf.join(votes)
+      vote_columns = list(votes.columns)
+      elections = set([int(el[1:]) + (1900 if int(el[1:]) > 50 else 2000) for el in votes.columns])
+
+    if usps and os.path.exists(race_file.format(usps.lower())):
+      race = pd.read_csv(race_file.format(usps.lower()), index_col = "rn")
+      race.rename(columns = {"pop" : "TotalPopulation"}, inplace = True)
+      gdf = gdf.join(race)
+
+
+    dis = gdf.dissolve("C", aggfunc='sum')
+    dis.reset_index(inplace = True)
+
+    target = dis["pop"].sum() / dis.shape[0]
+    dis["frac"] = (dis["pop"] / target).map('{:.03f}'.format)
+
+    dis["a"] *= 3.8610216e-7 # m2 to mi2
+    dis["a"] = dis["a"].astype(int)
+    dis.rename(columns = {"C" : "ID", "a" : "AreaSqMi", "pop" : "Population", "frac" : "TargetFraction"}, inplace = True)
+
+    js["PopulationDeviation"] = (np.abs(dis["Population"] - target)/target).max()
+
+
+    js["Elections"] = {}
+    for elyr in elections:
+      el = "{:02d}".format(elyr % 100)
+      dis["Party " + el] = "R"
+      dis.loc[dis["D" + el] > dis["R" + el], "Party " + el] = "D"
+
+      dis["D" + el + " Share"] = dis["D" + el] / (dis["D" + el] + dis["R" + el])
+      dis["R" + el + " Share"] = dis["R" + el] / (dis["D" + el] + dis["R" + el])
+
+      js["Elections"][elyr] = {}
+      js["Elections"][elyr]["DemSeats"] = int(sum(dis["D" + el + " Share"] > 0.5))
+      js["Elections"][elyr]["RepSeats"] = int(sum(dis["R" + el + " Share"] > 0.5))
+      js["Elections"][elyr]["DemFrac"]  = float(sum(dis["D" + el + " Share"])/js["Seats"])
+      js["Elections"][elyr]["RepFrac"]  = float(sum(dis["R" + el + " Share"])/js["Seats"])
+
+    for k, v in metrics.items(): dis[k] = pd.Series(v)
+
+    js["Districts"] = []
+    for ri, row in dis.iterrows():
+
+      dist = {"ID" : int(ri), "Populations" : {}, "Elections" : {}, "Spatial" : {}}
+      dist["Populations"]["Total"] = int(row["Population"])
+      dist["Populations"]["Black"] = int(row["black"])
+      dist["Populations"]["Hispanic"] = int(row["hispanic"])
+      dist["Populations"]["TargetFrac"] = float(row["Population"]/target)
+      dist["Populations"]["BlackFrac"] = float(row["black"]/row["Population"])
+      dist["Populations"]["HispanicFrac"] = float(row["hispanic"]/row["Population"])
+
+      for k in metrics: dist["Spatial"][k] = float(row[k])
+
+      for elyr in elections: 
+        el = "{:02d}".format(elyr % 100)
+        dist["Elections"][elyr] = {}
+        dist["Elections"][elyr]["Party"] = "R" if row["R" + el] > row["D" + el] else "D"
+        dist["Elections"][elyr]["DemFrac"] = float(row["D" + el] / (row["D" + el] + row["R" + el]))
+        dist["Elections"][elyr]["RepFrac"] = float(row["R" + el] / (row["D" + el] + row["R" + el]))
+        dist["Elections"][elyr]["DemVotes"] = int(row["D" + el])
+        dist["Elections"][elyr]["RepVotes"] = int(row["R" + el])
+
+      dist["AreaSqMi"] = float(row.AreaSqMi)
+      dist["Cells"] = list(int(k) for k, v in crm.items() if v == row.ID)
+
+      js["Districts"].append(dist)
+
+
+    with open(filename, 'w') as outfile: json.dump(js, outfile)
+
+
+
 def save_geojson(gdf, filename, crm, usps = None, metrics = None):
 
     gdf["C"] = pd.Series(crm)
 
     elections, vote_columns = [], []
-    if usps and os.path.exists("el/{}_votes.csv".format(usps.lower())):
-      votes = pd.read_csv("el/{}_votes.csv".format(usps.lower()), index_col = "rn")
+    if usps and os.path.exists(vote_file.format(usps.lower())):
+      votes = pd.read_csv(vote_file.format(usps.lower()), index_col = "rn")
       votes = votes.filter(regex = '[DR][0-9]{2}', axis = 1)
 
       gdf = gdf.join(votes)
@@ -367,7 +509,6 @@ def save_geojson(gdf, filename, crm, usps = None, metrics = None):
     dis["stroke"] = "#000000"
     dis["fill-opacity"] = 0.1
     with open(filename, "w") as out: out.write(dis.to_json())
-    # dis.to_file(filename, driver='GeoJSON') # crashes.
 
 
 def fix_mp(poly):

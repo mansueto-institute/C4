@@ -755,10 +755,12 @@ namespace Cluscious {
 
   }
 
-  void Region::make_ring() { 
+  bool Region::make_ring() { 
 
     node_ring.clear();
     get_node_ring(node_ring);
+    return node_ring.size();
+
   }
 
   std::pair<std::pair<float, float>, float> Region::get_circle_coords(RadiusType rt) {
@@ -788,7 +790,9 @@ namespace Cluscious {
     }
     if (node_ring.size()) point_ring.push_back(point_ring.front()); // close the loop.
     else {
-      cerr << "Found a ring with size 0 in region " << id << endl;
+      cerr << "Found a ring with size 0 in region " << id << ", which has " 
+           << cells.size() << " cells and "
+           << int_borders.size() << " internal border cells." << endl;
       throw std::runtime_error(std::string("Found a ring with size 0"));
     }
 
@@ -834,7 +838,6 @@ namespace Cluscious {
 
     // Looping around nodes of of the polygon.
     int loop_safe = 0; // because I lack confidence, for the time being....
-    // while ((node != start_node || ring.size() <= 1) && loop_safe < 1000) {
     while (node != start_node && loop_safe < 1000) {
 
       loop_safe++; 
@@ -1184,8 +1187,12 @@ namespace Cluscious {
   float Region::update_lic(Cell* add = 0, Cell* sub = 0, bool UPDATE = false) { 
 
     if (!node_ring.size()) {
-      cerr << "Found a ring with size 0 in region " << id << endl;
-      throw std::runtime_error(std::string("Found a ring with size 0"));
+      make_ring();
+      if (!node_ring.size()) {  
+        cerr << "Found a ring with size 0 in region " << id << ", which has "
+             << cells.size() << " cells and an internal border of " << int_borders.size() << endl;
+        throw std::runtime_error(std::string("Found a ring with size 0"));
+      }
     }
 
     if (!add && !sub && !UPDATE) return r2_lic;
@@ -1753,11 +1760,10 @@ namespace Cluscious {
           if (nsets != 1 && !strands.size()) continue;
           
           if (strands.size()) ntransfers++;
-          if (transfer_strand(strands)) {
-            regions[b->region]->remove_cell(b);
-            rA->add_cell(b);
-            moved = true;
-          }
+          transfer_strand(strands);
+          regions[b->region]->remove_cell(b);
+          rA->add_cell(b);
+          moved = true;
           break;
         }
       }
@@ -1932,6 +1938,8 @@ namespace Cluscious {
     for (auto r : regions) delete r;
     regions.clear();
 
+    for (auto c : cells) c->region = -1;
+
     for (size_t ri = 0; ri < nregions; ri++) 
       regions.push_back(new Region(ri));
 
@@ -2087,10 +2095,9 @@ namespace Cluscious {
 
       if (opt_cell) {
         if (opt_strands.size()) cout << "Transferring a strand of size = " << opt_strands.size() << endl;
-        if (transfer_strand(opt_strands)) {
-          regions[rA]->remove_cell(opt_cell);
-          regions[rB]->add_cell(opt_cell);
-        }
+        transfer_strand(opt_strands);
+        regions[rA]->remove_cell(opt_cell);
+        regions[rB]->add_cell(opt_cell);
       } else {
         cout << "Major problem -- no opt cell found!!!" << endl;
         cout << "ra nIB=" << regions[rA]->int_borders.size() << endl;
@@ -2892,17 +2899,17 @@ namespace Cluscious {
     // for (auto s : strand) cout << s->id << " ";
     // if (strand.size()) cout << endl;
 
-    bool queen = false;
+    int level = 0;
     int itercount = 0;
     while (strand.size()) {
 
       bool removed = false;
       for (auto c : strand) {
 
-        if (!c->neighbors_connected(queen)) continue;
+        if (!c->neighbors_connected(level) && level < 2) continue;
 
         // Move in an order that preserves contiguity.
-        std::unordered_set<int> nei_reg = c->neighbor_regions(queen);
+        std::unordered_set<int> nei_reg = c->neighbor_regions(level);
         if (nei_reg.size()) { 
           regions[c->region]->remove_cell(c); 
           regions[*nei_reg.begin()]->add_cell(c);
@@ -2915,13 +2922,19 @@ namespace Cluscious {
 
       if (!removed) {
         cout << "WARNING (" << itercount << ") :: strand not correctly removed from " << (*strand.begin())->region << " :: ";
-        if (!queen) {
+        if (!level) {
           cout << "switching to queen contiguity." << endl;
-          queen = true;
+          level = 1;
+        } else if (level == 1) {
+          cout << "disregarding contiguity...  level 2" << endl;
+          level = 2;
         } else {
-          cout << "left ";
-          for (auto c : strand) cout << c->id << " ";
-          cout << endl;
+          cout << " we still have left " << endl;
+          for (auto c : strand) {
+            cout << c->id << "  connected=" << c->neighbors_connected(level) << "  regions=" << c->neighbor_regions(level).size() << "   ::  ";
+            for (auto n : c->nm) cout << " " << n.first->id << "(" << n.first->region << ")  ";
+            cout << endl;
+          }
 
           return false;
         }
@@ -3076,14 +3089,13 @@ namespace Cluscious {
       int rem_reg = b_opt_c->region;
 
       // up to four cells....
-      if (transfer_strand(opt_strands)) {
+      transfer_strand(opt_strands);
 
-        if (verbose) cout << "Moving cell " << b_opt_c->id << " from region " << rem_reg << " to " << rit->id << endl;
-        regions[rem_reg]->remove_cell(b_opt_c);
-        rit->add_cell(b_opt_c);
+      if (verbose) cout << "Moving cell " << b_opt_c->id << " from region " << rem_reg << " to " << rit->id << endl;
+      regions[rem_reg]->remove_cell(b_opt_c);
+      rit->add_cell(b_opt_c);
 
-        set_tabu(b_opt_c);
-      }
+      set_tabu(b_opt_c);
 
       return true;
 
