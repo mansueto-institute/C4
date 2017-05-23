@@ -3,6 +3,10 @@
 #include <iostream>
 #include <fstream>
 
+#include <unordered_set>
+#include <algorithm>
+#include <random>
+
 #include <boost/geometry.hpp>
 #include <boost/geometry/geometries/polygon.hpp>
 #include <boost/geometry/geometries/point.hpp>
@@ -42,6 +46,28 @@ typedef bgmod::multi_polygon<bg_poly> bg_mpoly;
 
 int main()
 {
+
+    std::unordered_set<int> a;
+    for (int i = 0; i < 10; i++) a.insert(i);
+
+    for (auto ax : a) cout << ax << " ";
+    cout << endl;
+
+    for (auto ax : a) cout << ax << " ";
+    cout << endl;
+
+    auto engine = std::default_random_engine();
+
+    std::vector<std::unordered_set<int>::iterator> aiv(a.size());
+    std::iota(aiv.begin(), aiv.end(), a.begin());
+
+    for (int i = 0; i < 10; i++) {
+      std::shuffle(aiv.begin(), aiv.end(), engine);
+      for (auto ax : aiv) cout << *ax << " ";
+      cout << endl;
+    }
+
+
     bg_pt pt1(2, 1.3);
 
     bg_mpoly mpoly1, mpoly2, mpoly_o;

@@ -30,7 +30,7 @@
 
 namespace cl_shortest_path {
 
-  const bool debug = true;
+  const bool debug = false;
 
   using std::cout;
   using std::cerr;
@@ -125,7 +125,6 @@ namespace cl_shortest_path {
     std::vector<std::pair<float, float> > angles;
     std::vector<int> concave_borders;
 
-
     bg_ring exr = bgeo::exterior_ring(poly);
     int npts = exr.size();
 
@@ -149,7 +148,7 @@ namespace cl_shortest_path {
         bgeo::append(mpt, exr[pti]);
 
         angles.push_back(std::make_pair(atan2(dyp, dxp),
-              atan2(dyn, dxn)));
+                                        atan2(dyn, dxn)));
 
         concave_borders.push_back(concave);
         concave = true; // pay it forward.
@@ -181,7 +180,7 @@ namespace cl_shortest_path {
     int nmline = 0; bg_mlstr mline;
     for (int pti = 0; pti < ncpts;  pti++) {
 
-      cout << "point i=" << pti << " (ncpts=" << ncpts << ")" << endl;
+      // cout << "point i=" << pti << " (ncpts=" << ncpts << ")" << endl;
       for (int ptj = pti+1; ptj < ncpts; ptj++) {
 
         float dx = mpt[ptj].x() - mpt[pti].x();
@@ -270,13 +269,9 @@ namespace cl_shortest_path {
     srand (time(0));
     while (found < 2) {
 
-      float r1 = static_cast <float> (rand()) / RAND_MAX;
-      float r2 = static_cast <float> (rand()) / RAND_MAX;
-
       bp_pt pt(min_x + (max_x - min_x) * runif(gen),
                min_y + (max_y - min_y) * runif(gen));
 
-      cout << bgeo::within(pt, poly) << "   (x,y)=(" << pt.x() << "," << pt.y() << ")" << endl;
       if (!bgeo::within(pt, poly)) continue;
 
       for (int pti = 0; pti < ncpts+found;  pti++) {

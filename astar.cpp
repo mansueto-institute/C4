@@ -9,7 +9,7 @@ typedef boost::geometry::model::polygon<bp_pt> bg_poly;
 int main(int argc, char **argv) {
 
   bg_poly poly;
-  boost::geometry::read_wkt(pa7, poly);
+  boost::geometry::read_wkt(test1, poly);
   cl_shortest_path::shortest_path(poly);
 
   return 0;
