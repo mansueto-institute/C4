@@ -16,7 +16,7 @@
 // #include "boost/range/adaptor/reversed.hpp"
 
 #include <math.h>
-#include "Miniball.hpp"
+#include "cluscious/Miniball.hpp"
 
 #include <iostream>
 #include <fstream>
