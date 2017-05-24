@@ -324,7 +324,7 @@ namespace Cluscious {
       int   iterations_since_improvment;
       std::map<int, int> best_solution;
       // std::vector<std::pair<float, std::map<int, int> > > best_solutions;
-      void update_best_solutions(ObjectiveMethod omethod, float tol);
+      void update_best_solutions(ObjectiveMethod omethod, float tol, bool verbose = false);
       std::map<int, int> get_best_solution() { return best_solution; }
 
       void load_best_solution() { load_partition(best_solution); }

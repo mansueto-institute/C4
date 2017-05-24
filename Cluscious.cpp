@@ -3179,10 +3179,10 @@ namespace Cluscious {
 
       destrand(DESTRAND_MIN, DESTRAND_MAX);
 
-      update_best_solutions(omethod, tol * 2);
+      update_best_solutions(omethod, tol * 2, verbose);
       if (conv_iter && iterations_since_improvment > conv_iter) {
-        cout << "Best now " << best_solution_val
-             << ", more than " << conv_iter << " iterations since improvement.  Returning." << endl;
+        cout << "Iteration " << i << "; " << conv_iter << " since improvement." << endl;
+        cout << "Best solution now " << best_solution_val << ".  Returning...." << endl;
         break;
       }
     }
@@ -3190,7 +3190,7 @@ namespace Cluscious {
     return;
   }
 
-  void Universe::update_best_solutions(ObjectiveMethod omethod, float tol) {
+  void Universe::update_best_solutions(ObjectiveMethod omethod, float tol, bool verbose) {
 
     iterations_since_improvment++;
 
@@ -3207,8 +3207,11 @@ namespace Cluscious {
       best_solution_val = spatial_obj;
       best_tolerance_val = pop_max_dtol;
       best_solution = cell_region_map();
-      if (best_tolerance_val < tol) cout << "Best solution now :: " << best_solution_val << "  (tol=" << best_tolerance_val << ")" << endl;
-      else cout << "Tolerance now :: " << pop_max_dtol << endl;
+
+      if (verbose) {
+        if (best_tolerance_val < tol) cout << "Best solution now :: " << best_solution_val << "  (tol=" << best_tolerance_val << ")" << endl;
+        else cout << "Tolerance now :: " << pop_max_dtol << endl;
+      }
 
       iterations_since_improvment = 0;
     }
