@@ -1,9 +1,11 @@
-import os
+import os, sys
 from netrc import netrc
 
 if os.getenv("GMD_PASSWD") and os.getenv("GMD_USER"):
   user, passwd = os.getenv("GMD_USER"), os.getenv("GMD_PASSWD")
-else: user, acct, passwd = netrc().authenticators("harris")
+elif netrc().authenticators("hagis"):
+  user, acct, passwd = netrc().authenticators("harris")
+else: user, acct, passwd = None, None, None
 
 import matplotlib as mpl
 mpl.use('Agg')
@@ -146,6 +148,11 @@ def cache_stateinfo(usps, filename = None):
 
    if os.path.exists(filename + ".csv"): return
 
+   if not passwd:
+     print("Failed -- no geo db authentication or cached files.")
+     sys.exit(7)
+
+
    con = psycopg2.connect(database = "census", user = user, password = passwd,
                           host = "saxon.harris.uchicago.edu", port = 5432)
 
@@ -165,6 +172,11 @@ def cache_shapefile(usps, filename = None):
       filename = shapefile.format(usps.lower())
 
    if os.path.exists(filename): return
+
+   if not passwd:
+     print("Failed -- no geo db authentication or cached files.")
+     sys.exit(7)
+
 
    state = get_state_info(usps)
 
@@ -186,6 +198,11 @@ def cache_edge_file(usps, filename = None):
 
    if os.path.exists(filename + ".csv"): return
 
+   if not passwd:
+     print("Failed -- no geo db authentication or cached files.")
+     sys.exit(7)
+
+
    state = get_state_info(usps)
 
    con = psycopg2.connect(database = "census", user = user, password = passwd,
@@ -206,6 +223,11 @@ def cache_node_file(usps, filename = None):
 
    if os.path.exists(filename + ".csv"): return
 
+   if not passwd:
+     print("Failed -- no geo db authentication or cached files.")
+     sys.exit(7)
+
+
    state = get_state_info(usps)
 
    con = psycopg2.connect(database = "census", user = user, password = passwd,
@@ -224,6 +246,12 @@ def cache_node_file(usps, filename = None):
 def cache_race_file(usps, filename = None):
 
   if not filename: filename = race_file.format(usps.lower())
+
+  if os.path.exists(filename): return
+
+  if not passwd:
+    print("Failed -- no geo db authentication or cached files.")
+    sys.exit(7)
     
   pd.read_sql("""SELECT
                    rn.rn, d.state, d.county cid, d.tract,
@@ -276,14 +304,6 @@ def plot_map(gdf, filename, crm, hlt = None, shading = "district", figsize = 10,
     bins = min(5, dis.shape[0])
     q = ps.Quantiles(dis["frac"], k = bins)
 
-    labels = ["≤ {:.3f}".format(q.bins[i]) for i in range(bins) ]
-    if len(set(labels)) < len(labels):
-      labels = ["≤ {:.5f}".format(q.bins[i]) for i in range(bins) ]
-
-    dis["qyb"] = q.yb
-    dis["qyb"] = pd.Series(dis["qyb"], dtype="category")
-    if len(set(labels)) == len(labels):
-      dis["qyb"].cat.rename_categories(labels, inplace = True)
 
     if "target" in shading:
 
@@ -316,8 +336,6 @@ def plot_map(gdf, filename, crm, hlt = None, shading = "district", figsize = 10,
       cb.ax.tick_params(labelsize=12)
       cb.dividers.set_visible(False)
       cb.update_ticks()
-
-      # ax = dis.plot(column = "qyb", alpha = 0.3, categorical = True, cmap = "Greys", linewidth = 1.5, legend = True, figsize = fs)
 
       # if hlt: gdf[gdf["H"] == 1].plot(facecolor = "red", alpha = 0.1, linewidth = 0.05, ax = ax)
 
