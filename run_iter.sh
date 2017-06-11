@@ -30,5 +30,5 @@ done
 ./run.py -s ${s} -m inertia_p    -t 0.01 -x${x} -n$max_iter -c $cycles --conv_iter 500  --destrand_min 5 --destrand_max 50                   --shading $shading 
 ./run.py -s ${s} -m axis_ratio   -t 0.01 -x${x} -n$max_iter -c $cycles --conv_iter 500  --destrand_min 5 --destrand_max 50                   --shading $shading 
 
-# if [[ $x -le 1 ]]; then ./run.py -s ${s} -m path_frac -t 0.05 -n2500 -x${x} --destrand_min 20 --destrand_max 5000 --shading target district; fi
+if [[ $x -le 1 ]]; then ./run.py -s ${s} -m path_frac -t 0.05 -n2500 -x${x} --destrand_min 20 --destrand_max 5000 --shading target district; fi
 
