@@ -1770,30 +1770,6 @@ namespace Cluscious {
     }
   }
 
-  // void Universe::center_power_cells() {
-  //   
-  //   // Find the cell in the region closest 
-  //   // to the region's barycenter.
-  //   for (const auto& r : regions) {
-  //     float min_d2 = std::numeric_limits<float>::infinity();
-  //     for (auto c : r->cells) {
-  //       if (r->d2(c) > min_d2) continue;
-  //       r->pcell = c; min_d2 = r->d2(c);
-  //     }
-  //   }
-  // 
-  //   // Now set the initial d2 distance as the minimum
-  //   // intradistrict-center distance.
-  //   for (const auto& rA : regions) {
-  //     rA->pd2 = std::numeric_limits<float>::infinity();
-  //     for (const auto& rB : regions)
-  //       if (rA != rB && rA->pcell->d2(rB->pcell) < rA->pd2)
-  //         rA->pd2 = rA->pcell->d2(rB->pcell);
-  //   }
-
-  // }
-
-
   void Universe::iterate_power(float ptol, int niter, int reset_center) {
 
     float best_tol = 1.;
@@ -1810,8 +1786,6 @@ namespace Cluscious {
         for (const auto& other : regions)
           if (r != other && r->d2(other) < r->r2_pow)
             r->r2_pow = r->d2(other);
-        
-        // cout << __LINE__ << " :: Resetting region " << r->id << " :: " << r->x_pow << " " << r->y_pow << " " << sqrt(r->r2_pow) << endl;
       }
     }
 
@@ -1826,38 +1800,6 @@ namespace Cluscious {
         r->r2_pow -= clip(dpop * fabs(dpop), 0.01) * r->area;
       }
 
-      // Zapping -- 
-      // std::vector<float> zap_x(nregions, 0);
-      // std::vector<float> zap_y(nregions, 0);
-      // for (size_t rAi = 0; rAi < nregions; rAi++) {
-      //   Region* rA = regions[rAi];
-      //   for (size_t rBi = rAi+1; rBi < nregions; rBi++) {
-      //     Region* rB = regions[rBi];
-
-      //     float ab_d2 = rA->d2(rB, RadiusType::POWER);
-      //     // cout << rA->id << " to " << rB->id << " ab_d2=" << ab_d2 << endl;
-      //     if (ab_d2 > rA->r2_pow && ab_d2 > rB->r2_pow)
-      //       continue;
-
-      //     float aR = 1. * rA->pop / (rA->pop + rB->pop);
-      //     float bR = 1. * rB->pop / (rA->pop + rB->pop);
-      //     float dx = rA->x_pow - rB->x_pow;
-      //     float dy = rA->y_pow - rB->y_pow;
-
-      //     zap_x[rAi] -= dx * aR; zap_y[rAi] -= dy * aR;
-      //     zap_x[rBi] += dx * bR; zap_y[rBi] += dy * bR;
-      //   }
-      // }
-
-      // for (size_t ri = 0; ri < nregions; ri++) {
-      //   if (zap_x[ri] == 0) continue;
-
-      //   Region* reg = regions[ri];
-      //   cout << "Would have zapped rid=" << reg->id << " dx=" << 0.02 * zap_x[ri] << endl;
-      //   reg->x_pow -= 0.02 * zap_x[ri];
-      //   reg->y_pow -= 0.02 * zap_y[ri];
-      // }
-      
       // No region can have a d2 larger than 
       // its smallest intra-region distance.
       for (const auto& rA : regions) {
@@ -1990,7 +1932,21 @@ namespace Cluscious {
 
   }
 
-  void Universe::reboot(int seed, ObjectiveMethod om) {
+  void Universe::power_restart(int seed, int niter, float tol) {
+
+    for (auto r : regions) delete r;
+    regions.clear();
+
+    for (auto c : cells) c->region = -1;
+
+    rand_init(seed);
+    grow_kmeans();
+
+    iterate_power(tol, niter, 1);
+
+  }
+
+  void Universe::split_restart(int seed, ObjectiveMethod om) {
 
     best_tolerance_val = 1;
     best_solution_val = 0;

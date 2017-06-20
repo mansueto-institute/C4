@@ -17,6 +17,10 @@ def load_data(state, method):
 
   ens_data(state)
 
+  if get_seats(state) == 1:
+    print(state, "has a single districting -- returning.")
+    sys.exit()
+
   u = pycl.universe(get_seats(state))
   
   gdf = gpd.read_file(shapefile.format(state))
@@ -93,13 +97,11 @@ def point_df(u, point = True):
                                     for r in range(u.nregions)]])
 
 
-def main(state, seed, method, ncycles, niter, nloops, tol, conv_iter, init, write, 
+def main(state, seed, method, ncycles, split_restart, power_restart, niter, nloops, tol, conv_iter, init, write, 
          grasp, allow_trades, destrand_inputs, destrand_min, destrand_max, tabu_length,
          circle, ring, point, print_init, no_plot, shading, borders, verbose):
 
   u, gdf = load_data(state, method)
-
-  if u.nregions == 1: return
 
   u.RANDOM       = grasp 
   u.TRADE        = allow_trades
@@ -147,7 +149,13 @@ def main(state, seed, method, ncycles, niter, nloops, tol, conv_iter, init, writ
     if ncycles > 1:
       write_cycle = write + "/c{:03d}".format(c)
       ens_dir("res/{}".format(write_cycle))
-      if c: u.reboot(seed, pycl_methods[method])
+      if c:
+        if power_restart:
+          sinit = init.split(":")
+          npiter = int(sinit[1]) if len(init) > 1 else 10000
+          u.power_restart(seed + c * 1000, npiter, tol)
+
+        if split_restart: u.split_restart(seed, pycl_methods[method])
     else: write_cycle = write
 
     for i in range(0, nloops+1):
@@ -161,7 +169,8 @@ def main(state, seed, method, ncycles, niter, nloops, tol, conv_iter, init, writ
 
       for s in shading:
         style = "" if len(shading) == 1 else "_{}".format(s)
-        plot_map(gdf, "res/{}/i{:03d}{}.pdf".format(write_cycle, i, style), label = pycl_formal[method] if i else init.capitalize(),
+        plot_map(gdf, "res/{}/i{:03d}{}.pdf".format(write_cycle, i, style),
+                 label = pycl_formal[method] if i else init.capitalize(),
                  crm = crm, hlt = u.border_cells(True if "ext" in borders else False) if borders else None, shading = s,
                  ring = ring_df(u, (ring or s == "density")),
                  circ = circle_df(u, circle), point = point_df(u, point), legend = verbose)
@@ -173,10 +182,10 @@ def main(state, seed, method, ncycles, niter, nloops, tol, conv_iter, init, writ
 
     save_json("res/json/{}.json".format(write_cycle.replace("/", "_")),
               state, pycl_short[method], write_cycle, gdf, crm = u.cell_region_map(),
-              metrics = {v : u.get_objectives(pycl_methods[k]) for k, v in pycl_short.items()})
+              metrics = {pycl_short[k] : u.get_objectives(v) for k, v in pycl_methods.items()})
 
     save_geojson(gdf, "res/{}/final.geojson".format(write_cycle), u.cell_region_map(), state,
-                 metrics = {v : u.get_objectives(pycl_methods[k]) for k, v in pycl_formal.items()})
+                 metrics = {pycl_short[k] : u.get_objectives(v) for k, v in pycl_methods.items()})
 
 
 if __name__ == "__main__":
@@ -189,14 +198,16 @@ if __name__ == "__main__":
   parser.add_argument("-x", "--seed",      default = 0, type = int)
   parser.add_argument("-s", "--state",     default = "pa", type=str.lower, choices = us_states, help='state')
   parser.add_argument("-w", "--write",     default = "", type = str)
-  parser.add_argument("-m", "--method",    default = "dist_a", choices = pycl_methods, type = str)
+  parser.add_argument("-m", "--method",    default = "dist_a", choices = pycl_formal, type = str)
 
   # Looping parameters.
-  parser.add_argument("-c", "--ncycles",   default = 1, type = int, help = "Number of reboots (split/merge)")
+  parser.add_argument("-c", "--ncycles",   default = 1, type = int, help = "Number of restarts (split/merge)")
   parser.add_argument("-l", "--nloops",    default = 1, type = int, help = "Loops: number of times to run iter")
   parser.add_argument("-n", "--niter",     default = 100, type = int, help = "Max iterations per loop.")
   parser.add_argument("--conv_iter",       default = 0, type = int, help = "Stop after X without improvement.")
   parser.add_argument("-t", "--tol",       default = 0.02, type = float)
+  parser.add_argument("--power_restart",   action  = "store_true", help = "Number of restarts (split/merge)")
+  parser.add_argument("--split_restart",   action  = "store_true", help = "Number of restarts (split/merge)")
 
   # Metaheuristic and minimum configuration
   parser.add_argument("--grasp",           action  = "store_true")
@@ -222,6 +233,8 @@ if __name__ == "__main__":
   if not args.write: args.write = "{}/{}/s{:03d}".format(args.state, args.method, args.seed)
   if "all" in [s.lower() for s in args.shading]: args.shading = ["district", "target", "density"]
   if "none" in [s.lower() for s in args.shading]: args.shading = []
+
+  if args.ncycles > 1 and not args.power_restart: args.split_restart = True
 
   if args.no_plot: shading = []
 

@@ -307,7 +307,8 @@ namespace Cluscious {
       std::vector<Node*>   nodes;
 
       void assign_to_zero();
-      void reboot(int seed, ObjectiveMethod om);
+      void power_restart(int seed, int niter, float tol);
+      void split_restart(int seed, ObjectiveMethod om);
       bool split_region(int r = 0, float a = -1, bool connect = true);
       bool merge_regions(int rA, int rB);
       void split_line_init();

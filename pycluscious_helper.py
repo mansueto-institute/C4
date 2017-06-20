@@ -3,7 +3,7 @@ from netrc import netrc
 
 if os.getenv("GMD_PASSWD") and os.getenv("GMD_USER"):
   user, passwd = os.getenv("GMD_USER"), os.getenv("GMD_PASSWD")
-elif netrc().authenticators("hagis"):
+elif netrc().authenticators("harris"):
   user, acct, passwd = netrc().authenticators("harris")
 else: user, acct, passwd = None, None, None
 
@@ -92,6 +92,7 @@ pycl_formal  = {
                 "rohrbach"    : "Distance to Perimeter",
                 "exchange"    : "Exchange",
                 "path_frac"   : "Path Fraction",
+                "power"       : "Power Diagram"
                }
 
 
@@ -111,7 +112,8 @@ pycl_short  = {
                "harm_radius" : "HarmonicRadius",
                "rohrbach"    : "DistPerimeter",
                "exchange"    : "Exchange",
-               "path_frac"   : "PathFraction"
+               "path_frac"   : "PathFraction",
+               "power"       : "PowerDiagram"
               }
 
 
@@ -392,8 +394,8 @@ def save_json(filename, usps, method, uid, gdf, crm, metrics):
     of = open(filename, 'w')
 
     js = {"USPS" : usps.upper(), "FIPS" : get_fips(usps), 
-          "Method" : method, "Seats" : get_seats(usps),
-          "UID" : uid, "Score" : sum(v for v in metrics[method].values())/get_seats(usps)
+          "Method" : method, "Seats" : get_seats(usps), "UID" : uid,
+          "Score" : 0 if method is "PowerDiagram" else sum(v for v in metrics[method].values())/get_seats(usps)
          }
 
     gdf["C"] = pd.Series(crm)

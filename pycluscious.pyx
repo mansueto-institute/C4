@@ -69,7 +69,8 @@ cdef extern from "Cluscious.h" namespace "Cluscious" :
         void add_cell_to_region(int cid, int rid)
 
         void assign_to_zero() except +
-        void reboot(int, ObjectiveMethod) except +
+        void power_restart(int s, int n, float tol)
+        void split_restart(int, ObjectiveMethod) except +
         int  split_region(int, float) except +
         int  merge_regions(int, int) except +
         void split_line_init() except +
@@ -174,8 +175,11 @@ cdef class universe:
     def assign_to_zero(self):
         self.c_univ.assign_to_zero()
 
-    def reboot(self, int s, int om_i):
-        self.c_univ.reboot(s, ObjectiveMethod(om_i))
+    def power_restart(self, int s, int n, float tol):
+        self.c_univ.power_restart(s, n, tol)
+
+    def split_restart(self, int s, int om_i):
+        self.c_univ.split_restart(s, ObjectiveMethod(om_i))
 
     def split_region(self, int r, float a = -1):
         return self.c_univ.split_region(r, a)
