@@ -1951,6 +1951,7 @@ namespace Cluscious {
     best_tolerance_val = 1;
     best_solution_val = 0;
     iterations_since_improvment = 0;
+    cout << "Iterations and best now zeroed out." << endl;
 
     std::vector<std::pair<int, float> > obj_reg;
     for (auto r : regions) 
@@ -2911,7 +2912,9 @@ namespace Cluscious {
 
         std::unordered_set<Cell*> strand;
         size_t strand_max = max;
-        if (2*max > regions[b->region]->ncells) max = regions[b->region]->ncells/2-1;
+        if (2*max > regions[b->region]->ncells)
+          strand_max = regions[b->region]->ncells/2-1;
+
         b->neighbor_strands(strand, strand_max);
 
         bool strand_is_tabu = false;
@@ -3112,7 +3115,7 @@ namespace Cluscious {
   }
 
 
-  void Universe::oiterate(ObjectiveMethod omethod, int niter = 1, float tol = 0.05, int conv_iter = 0, int seed = 0, int r = -1, int verbose = 0) {
+  bool Universe::oiterate(ObjectiveMethod omethod, int niter = 1, float tol = 0.05, int conv_iter = 0, int seed = 0, int r = -1, int verbose = 0) {
 
     if (r >= int(regions.size()))
       throw std::runtime_error(std::string("Cannot iterate over region -- there aren't that many!"));
@@ -3139,11 +3142,11 @@ namespace Cluscious {
       if (conv_iter && iterations_since_improvment > conv_iter) {
         cout << "Iteration " << i << "; " << conv_iter << " since improvement." << endl;
         cout << "Best solution now " << best_solution_val << ".  Returning...." << endl;
-        break;
+        return true;
       }
     }
 
-    return;
+    return false;
   }
 
   void Universe::update_best_solutions(ObjectiveMethod omethod, float tol, bool verbose) {
