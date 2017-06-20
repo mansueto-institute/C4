@@ -87,7 +87,7 @@ cdef extern from "Cluscious.h" namespace "Cluscious" :
         void iterate(int, float, int)
         int  destrand(int, int)
 
-        void oiterate(ObjectiveMethod, int, float, int, int, int, int);
+        int  oiterate(ObjectiveMethod, int, float, int, int, int, int);
 
         void iterate_power(float, int, int)
 
@@ -267,7 +267,7 @@ cdef class universe:
         self.c_univ.iterate(niter, tol, r)
 
     def oiterate(self, int om_i = 0, int niter = 1, float tol = 0.05, int conv_iter = 0, int seed = 0, int reg = -1, int verbose = 0):
-        self.c_univ.oiterate(ObjectiveMethod(om_i), niter, tol, conv_iter, seed, reg, verbose)
+        return self.c_univ.oiterate(ObjectiveMethod(om_i), niter, tol, conv_iter, seed, reg, verbose)
 
     def get_objectives(self, int om_i):
         return {r.id : r.obj(ObjectiveMethod(om_i)) for r in self.c_univ.regions}

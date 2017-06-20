@@ -147,15 +147,18 @@ def main(state, seed, method, ncycles, niter, nloops, tol, conv_iter, init, writ
     if ncycles > 1:
       write_cycle = write + "/c{:03d}".format(c)
       ens_dir("res/{}".format(write_cycle))
-      if c: u.reboot(seed, pycl_methods[method])
+      if c:
+        print("rebooting")
+        u.reboot(seed, pycl_methods[method])
     else: write_cycle = write
 
     for i in range(0, nloops+1):
 
-      if i: u.oiterate(pycl_methods[method], niter = niter, tol = tol, conv_iter = conv_iter, seed = seed, verbose = verbose)
+      if i:
+        converged = u.oiterate(pycl_methods[method], niter = niter, tol = tol, conv_iter = conv_iter, seed = seed, verbose = verbose)
       elif not print_init: continue
       
-      if i == nloops and u.get_best_solution(): u.load_best_solution()
+      if (converged or i == nloops) and u.get_best_solution(): u.load_best_solution()
 
       crm = u.cell_region_map()
 
@@ -170,6 +173,8 @@ def main(state, seed, method, ncycles, niter, nloops, tol, conv_iter, init, writ
         for k, v in crm.items(): out.write("{},{}\n".format(k, v))
 
       print(write_cycle, ":: completed iteration", i)
+
+      if converged: break
 
     save_json("res/json/{}.json".format(write_cycle.replace("/", "_")),
               state, pycl_short[method], write_cycle, gdf, crm = u.cell_region_map(),
