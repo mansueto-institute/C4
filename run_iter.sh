@@ -8,13 +8,9 @@ max_iter=10000
 # shading="target district"
 shading="none"
 
-if [[ $x -eq 0 ]]; then ./run.py -s ${s} -i split -l0 --print_init -w ${s}/split/s000 --shading target district; fi
+if [[ $x -eq 1 ]]; then ./run.py -s ${s} -i split -l0 --print_init -w ${s}/split/s000 --shading target district; fi
 
-for c in $(seq 20); do
-  let cx=$x*20+$c
-  ./run.py -s ${s} -i power:100000 -t 0.01 -x${cx} -l0 --print_init -w ${s}/power/$(printf "s%03d" $x)/$(printf "c%03d" $c) --shading $shading
-done
-
+./run.py -s ${s} -i power:100000 -t 0.01 -x$x -l0 -x0 --power_restart --print_init -c 100 -w pa/power/s000/ -m power
 ./run.py -s ${s} -m dist_a       -t 0.01 -x${x} -n$max_iter -c $cycles --conv_iter 1000 --destrand_min 5 --destrand_max 50 --tabu_length 2   --shading $shading 
 ./run.py -s ${s} -m dist_p       -t 0.01 -x${x} -n$max_iter -c $cycles --conv_iter 1000 --destrand_min 5 --destrand_max 50 --tabu_length 2   --shading $shading 
 ./run.py -s ${s} -m dyn_radius   -t 0.01 -x${x} -n$max_iter -c $cycles --conv_iter 500  --destrand_min 5 --destrand_max 50                   --shading $shading 
@@ -31,5 +27,5 @@ done
 ./run.py -s ${s} -m inertia_p    -t 0.01 -x${x} -n$max_iter -c $cycles --conv_iter 500  --destrand_min 5 --destrand_max 50                   --shading $shading 
 ./run.py -s ${s} -m axis_ratio   -t 0.01 -x${x} -n$max_iter -c $cycles --conv_iter 500  --destrand_min 5 --destrand_max 50                   --shading $shading 
 
-if [[ $x -le 1 ]]; then ./run.py -s ${s} -m path_frac -t 0.05 -n2000 --conv_iter 100 -x${x} --destrand_min 20 --destrand_max 5000 --shading target district; fi
+# if [[ $x -le 1 ]]; then ./run.py -s ${s} -m path_frac -t 0.05 -n2000 --conv_iter 100 -x${x} --destrand_min 20 --destrand_max 5000 --shading target district; fi
 

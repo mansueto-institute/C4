@@ -155,13 +155,14 @@ def main(state, seed, method, ncycles, split_restart, power_restart, niter, nloo
           npiter = int(sinit[1]) if len(init) > 1 else 10000
           u.power_restart(seed + c * 1000, npiter, tol)
 
-        if split_restart: u.split_restart(seed, pycl_methods[method])
+        if split_restart:
           print("rebooting")
-          u.reboot(seed, pycl_methods[method])
+          u.split_restart(seed, pycl_methods[method])
     else: write_cycle = write
 
     for i in range(0, nloops+1):
 
+      converged = False
       if i:
         converged = u.oiterate(pycl_methods[method], niter = niter, tol = tol, conv_iter = conv_iter, seed = seed, verbose = verbose)
       elif not print_init: continue
@@ -171,14 +172,14 @@ def main(state, seed, method, ncycles, split_restart, power_restart, niter, nloo
       crm = u.cell_region_map()
 
       for s in shading:
-        style = "" if len(shading) == 1 else "_{}".format(s)
-        plot_map(gdf, "res/{}/i{:03d}{}.pdf".format(write_cycle, i, style),
+        tag = "final" if (i == nloops or converged) else "i{:03d}".format(i)
+        plot_map(gdf, "res/{}/{}_{}.pdf".format(write_cycle, tag, s),
                  label = pycl_formal[method] if i else init.capitalize(),
                  crm = crm, hlt = u.border_cells(True if "ext" in borders else False) if borders else None, shading = s,
                  ring = ring_df(u, (ring or s == "density")),
                  circ = circle_df(u, circle), point = point_df(u, point), legend = verbose)
 
-      with open ("res/{}/i{:03d}.csv".format(write_cycle, i), "w") as out:
+      with open ("res/{}/{}.csv".format(write_cycle, tag), "w") as out:
         for k, v in crm.items(): out.write("{},{}\n".format(k, v))
 
       print(write_cycle, ":: completed iteration", i)
