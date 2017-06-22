@@ -171,8 +171,9 @@ def main(state, seed, method, ncycles, split_restart, power_restart, niter, nloo
 
       crm = u.cell_region_map()
 
+      tag = "final" if (i == nloops or converged) else "i{:03d}".format(i)
+
       for s in shading:
-        tag = "final" if (i == nloops or converged) else "i{:03d}".format(i)
         plot_map(gdf, "res/{}/{}_{}.pdf".format(write_cycle, tag, s),
                  label = pycl_formal[method] if i else init.capitalize(),
                  crm = crm, hlt = u.border_cells(True if "ext" in borders else False) if borders else None, shading = s,
