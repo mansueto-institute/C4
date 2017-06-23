@@ -8,9 +8,9 @@ max_iter=10000
 # shading="target district"
 shading="none"
 
-if [[ $x -eq 1 ]]; then ./run.py -s ${s} -i split -l0 --print_init -w ${s}/split/s000 --shading target district; fi
+if [[ $x -eq 1 ]]; then ./run.py -s ${s} -i split -l0 --print_init -w ${s}/split/s001 --shading target district; fi
 
-./run.py -s ${s} -i power:100000 -t 0.01 -x$x -l0 -x0 --power_restart --print_init -c 100 -w ${s}/power/s000/ -m power --shading $shading
+./run.py -s ${s} -i power:100000 -t 0.01 -x${x} -l0 -x0 --power_restart --print_init -c 100 -w ${s}/power/$(printf "s%03d" $x)/ -m power --shading $shading
 ./run.py -s ${s} -m dist_a       -t 0.01 -x${x} -n$max_iter -c $cycles --conv_iter 1000 --destrand_min 5 --destrand_max 50 --tabu_length 2   --shading $shading 
 ./run.py -s ${s} -m dist_p       -t 0.01 -x${x} -n$max_iter -c $cycles --conv_iter 1000 --destrand_min 5 --destrand_max 50 --tabu_length 2   --shading $shading 
 ./run.py -s ${s} -m dyn_radius   -t 0.01 -x${x} -n$max_iter -c $cycles --conv_iter 500  --destrand_min 5 --destrand_max 50                   --shading $shading 
