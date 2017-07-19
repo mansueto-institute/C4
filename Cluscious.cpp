@@ -495,21 +495,21 @@ namespace Cluscious {
 
   Region::Region() 
     : id(0), pop(0), ncells(0), area(1e-6), xctr(0), yctr(0), xpctr(0), ypctr(0), sumw_border(0),
-      Ip(0), has_topo(false), eps_scc(1e7), x_scc(0), y_scc(0), r2_scc(0),
+      Ip(0), Ia(0), has_topo(false), eps_scc(1e7), x_scc(0), y_scc(0), r2_scc(0),
       eps_lic(2), x_lic(0), y_lic(0), r2_lic(std::numeric_limits<double>::infinity()),
       x_pow(0), y_pow(0), r2_pow(0)
   {}
 
   Region::Region(int rid) 
     : id(rid), pop(0), ncells(0), area(1e-6), xctr(0), yctr(0), xpctr(0), ypctr(0), sumw_border(0),
-      Ip(0), has_topo(false), eps_scc(1e7), x_scc(0), y_scc(0), r2_scc(0), 
+      Ip(0), Ia(0), has_topo(false), eps_scc(1e7), x_scc(0), y_scc(0), r2_scc(0), 
       eps_lic(2), x_lic(0), y_lic(0), r2_lic(std::numeric_limits<double>::infinity()),
       x_pow(0), y_pow(0), r2_pow(0)
   {}
 
   Region::Region(int rid, Cell* c) 
     : id(rid), pop(0), ncells(0), area(1e-6), xctr(c->x), yctr(c->y), xpctr(c->x), ypctr(c->y), sumw_border(0),
-      Ip(0), has_topo(false), eps_scc(1e7), x_scc(0), y_scc(0), r2_scc(0),
+      Ip(0), Ia(0), has_topo(false), eps_scc(1e7), x_scc(0), y_scc(0), r2_scc(0),
       eps_lic(2), x_lic(0), y_lic(0), r2_lic(std::numeric_limits<double>::infinity()),
       x_pow(0), y_pow(0), r2_pow(0)
   { add_cell(c, true); }
@@ -566,6 +566,9 @@ namespace Cluscious {
   }
 
   double Region::inertia_parallel_axis(double I0, double x0, double y0, double w0, double xc, double yc, double wc) {
+
+    if (wc == 0) return I0; // avoid case of w0 = wc = 0...
+    if (ncells == 1) return 0; // the area is initialized to 1e-6, and won't perfectly cancel...
 
     // Find the new center
     double xp = (w0 * x0 + wc * xc) / (w0 + wc);
@@ -1951,13 +1954,12 @@ namespace Cluscious {
     best_tolerance_val = 1;
     best_solution_val = 0;
     iterations_since_improvment = 0;
-    cout << "Iterations and best now zeroed out." << endl;
 
     std::vector<std::pair<int, float> > obj_reg;
     for (auto r : regions) 
       obj_reg.push_back(std::make_pair(r->id, r->obj(om)));
     std::sort(obj_reg.begin(), obj_reg.end(), compare_second<int, float>);
-    for (auto sr : obj_reg) cout << "sr=" << sr.first << " " << sr.second << "  obj" << int(om) << endl;
+    // for (auto sr : obj_reg) cout << "sr=" << sr.first << " " << sr.second << "  obj" << int(om) << endl;
 
     for (auto sr : obj_reg) if (split_region(sr.first)) break;
 
