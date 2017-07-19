@@ -113,7 +113,8 @@ pycl_short  = {
                "rohrbach"    : "DistPerimeter",
                "exchange"    : "Exchange",
                "path_frac"   : "PathFraction",
-               "power"       : "PowerDiagram"
+               "power"       : "PowerDiagram",
+               "split"       : "SplitLine"
               }
 
 
@@ -281,7 +282,7 @@ def cache_race_file(usps, filename = None):
 
 
 
-def plot_map(gdf, filename, crm, hlt = None, shading = "district", figsize = 10, label = "", ring = None, circ = None, point = None, legend = False):
+def plot_map(gdf, filename, crm, hlt = None, shading = "district", figsize = 10, label = "", ring = None, circ = None, point = None, scores = None, legend = False):
 
     gdf["C"] = pd.Series(crm)
 
@@ -306,6 +307,7 @@ def plot_map(gdf, filename, crm, hlt = None, shading = "district", figsize = 10,
     bins = min(5, dis.shape[0])
     q = ps.Quantiles(dis["frac"], k = bins)
 
+    if scores: dis["scores"] = pd.Series(scores)
 
     if "target" in shading:
 
@@ -340,6 +342,32 @@ def plot_map(gdf, filename, crm, hlt = None, shading = "district", figsize = 10,
       cb.update_ticks()
 
       # if hlt: gdf[gdf["H"] == 1].plot(facecolor = "red", alpha = 0.1, linewidth = 0.05, ax = ax)
+
+    elif "scores" in shading:
+
+      col, alpha, trunc = "cool", 0.7, ""
+    
+      norm = Normalize(vmin = min(scores.values()), vmax = max([1, max(scores.values())]))
+      # print(sum(scores.values()))
+    
+      cmap = plt.cm.ScalarMappable(norm=norm, cmap = col)
+      
+      ax = dis.plot(color = "white", edgecolor = "white", figsize = fs)
+      for xi, row in dis.iterrows(): dis[dis.index == xi].plot(ax = ax, alpha = alpha, facecolor = cmap.to_rgba(row["scores"]))
+
+      fig = ax.get_figure()
+      cax = fig.add_axes([0.16, 0.13, 0.70, 0.015 * np.sqrt(xr/yr)])
+      sm = plt.cm.ScalarMappable(cmap = col, norm=norm)
+      sm._A = [] # gross
+    
+      cb = fig.colorbar(sm, cax = cax, alpha = alpha, # label = "Population / Target" + trunc, labelsize=12,
+                        orientation='horizontal', drawedges = True)
+      cb.locator = ticker.MaxNLocator(nbins=5)
+      cb.formatter.set_useOffset(False)
+      cb.set_label("Score", size=12)
+      cb.ax.tick_params(labelsize=12)
+      cb.dividers.set_visible(False)
+      cb.update_ticks()
 
     elif "density" in shading:
       ax = gdf.plot(column = "density", cmap = "gray", scheme = "quantiles", k = 9, alpha = 0.8, figsize = fs, linewidth = 0)

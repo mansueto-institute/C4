@@ -174,11 +174,16 @@ def main(state, seed, method, ncycles, split_restart, power_restart, niter, nloo
       tag = "final" if (i == nloops or converged) else "i{:03d}".format(i)
 
       for s in shading:
+
+        # Score
+        scores = [1] * u.nregions
+        if method in pycl_methods: scores = u.get_objectives(pycl_methods[method])
+
         plot_map(gdf, "res/{}/{}_{}.pdf".format(write_cycle, tag, s),
                  label = pycl_formal[method] if i else init.capitalize(),
                  crm = crm, hlt = u.border_cells(True if "ext" in borders else False) if borders else None, shading = s,
                  ring = ring_df(u, (ring or s == "density")),
-                 circ = circle_df(u, circle), point = point_df(u, point), legend = verbose)
+                 circ = circle_df(u, circle), point = point_df(u, point), scores = scores, legend = verbose)
 
       with open ("res/{}/{}.csv".format(write_cycle, tag), "w") as out:
         for k, v in crm.items(): out.write("{},{}\n".format(k, v))
@@ -238,8 +243,9 @@ if __name__ == "__main__":
   args = parser.parse_args()
 
   if not args.write: args.write = "{}/{}/s{:03d}".format(args.state, args.method, args.seed)
-  if "all" in [s.lower() for s in args.shading]: args.shading = ["district", "target", "density"]
+  if "all" in [s.lower() for s in args.shading]: args.shading = ["district", "target", "density", "scores"]
   if "none" in [s.lower() for s in args.shading]: args.shading = []
+  if args.nloops == 0: method = args.init
 
   if args.ncycles > 1 and not args.power_restart: args.split_restart = True
 
