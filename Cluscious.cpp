@@ -1,3 +1,26 @@
+// [MIT License]
+//
+// Copyright (c) 2017 James Saxon
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.  Academic papers or commercial
+// using this software must clearly cite this work.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
 #include "Cluscious.h" 
 
 
@@ -1773,7 +1796,7 @@ namespace Cluscious {
     }
   }
 
-  void Universe::iterate_power(float ptol, int niter, int reset_center) {
+  void Universe::iterate_power(float ptol, int niter, int reset_center, int verbose) {
 
     float best_tol = 1.;
     std::map<int, int> best_soln;
@@ -1794,7 +1817,7 @@ namespace Cluscious {
 
     for (int i = 0; i < niter && best_tol > ptol; i++) {
 
-      if (!(i % 100)) cout << "Iteration " << i << ", tolerance now " << best_tol << endl;
+      if (verbose && !(i % 100)) cout << "Iteration " << i << ", tolerance now " << best_tol << endl;
 
       voronoi_classify();
 
@@ -1827,7 +1850,7 @@ namespace Cluscious {
       if (dtol < best_tol) {
         best_tol = dtol;
         best_soln = cell_region_map();
-        cout << "Iteration " << i << ", tolerance now " << best_tol << endl;
+        if (verbose) cout << "Iteration " << i << ", tolerance now " << best_tol << endl;
       }
     }
 
@@ -1935,7 +1958,7 @@ namespace Cluscious {
 
   }
 
-  void Universe::power_restart(int seed, int niter, float tol) {
+  void Universe::power_restart(int seed, int niter, float tol, int verbose) {
 
     for (auto r : regions) delete r;
     regions.clear();
@@ -1945,7 +1968,7 @@ namespace Cluscious {
     rand_init(seed);
     grow_kmeans();
 
-    iterate_power(tol, niter, 1);
+    iterate_power(tol, niter, 1, verbose);
 
   }
 
@@ -2485,11 +2508,15 @@ namespace Cluscious {
 
     // If we're adding, add every other pair....
     if (add) {
+
       int end_id = add->id;
+      long long apop_ll = add->pop;
+
       for (auto crawler : cells) {
 
-        int pop_prod = (add->pop) * (crawler->pop);
-        // cout << __LINE__ << " :: " << pop_prod << endl;
+        auto begin = crawler;
+
+        long long pop_prod = apop_ll * crawler->pop;
         den_mod += pop_prod;
 
         while (crawler->id != end_id) {
@@ -2500,6 +2527,9 @@ namespace Cluscious {
         }
 
         if (crawler->id == end_id) num_mod += pop_prod;
+
+        if (num_mod > den_mod) cout << "num_mod=" << num_mod << " den_mod=" << den_mod << "  pop_prod=" << pop_prod << "  begin_id=" << begin->id << "  begin_pop=" << begin->pop << "  end_id=" << end_id << "  add_id=" << add->id << "  add_pop=" << add->pop << "=" << apop_ll << "  sub_id=" << (sub ? sub->id : -1) << endl;
+        assert(num_mod <= den_mod);
       }
     }
 
@@ -2508,43 +2538,42 @@ namespace Cluscious {
     bool mod_contained; // , nom_contained;
     for (auto& dest : cells) {
 
+      long long dpop_ll = dest->pop;
+
       int end_id = dest->id;
       for (auto crawler : cells) {
 
-        if (dest->id < crawler->id) continue; // symmetric.
+        auto begin = crawler;
+        if (dest->id < crawler->id) continue; 
 
-        // nom_contained = true;
         mod_contained = (sub != crawler);
 
-        int pop_prod = (dest->pop) * (crawler->pop);
+        long long pop_prod = dpop_ll * crawler->pop;
 
-        // den_nom += pop_prod;
         if (mod_contained) den_mod += pop_prod;
 
         while (crawler->id != end_id && 
                mod_contained) {
-               // (mod_contained || nom_contained)) {
 
-          // if (crawler->region != id) nom_contained = false;
           if ((crawler != add && crawler->region != id) || 
                crawler == sub) mod_contained = false;
 
           crawler = crawler->dijkstra_step[end_id];
         }
 
-        // if (nom_contained) num_nom += pop_prod;
         if (mod_contained) num_mod += pop_prod;
+
+        if (num_mod > den_mod) cout << "num_mod=" << num_mod << " den_mod=" << den_mod << "  begin_id=" << begin->id << "  end_id=" << end_id << "  add_id=" << (add ? add->id : -1) << "  sub_id=" << (sub ? sub->id : -1) << endl;
+        assert(num_mod <= den_mod);
       }
     }
 
+    if (num_mod == 0 || num_mod > den_mod) cout << "num_mod=" << num_mod << " den_mod=" << den_mod << endl;
     assert(num_mod >=0 && num_mod <= den_mod);
     double frac_mod = 1. * num_mod / den_mod;
-    // double frac_nom = 1. * num_nom / den_nom;
 
-    // if (verbose) cout << "Nom fraction " << 1.*num_nom/den_nom << endl;
     if (verbose) cout << "Path fraction " << frac_mod << endl;
 
-    // return frac_mod - frac_nom;
     return frac_mod; 
 
   }
@@ -3013,7 +3042,7 @@ namespace Cluscious {
     // int. cells will be removed as someone else's external.
     if (random) { // Random greedy is grasp.
 
-      float r_base = rit->obj(omethod);
+      float r_base = rit->obj(omethod, 0, 0, verbose);
       if (verbose) cout << "GRASP Region " << rit->id << " beat :: " << r_base << endl;
 
       std::vector<std::unordered_set<Cell*>::iterator> ebv(rit->ext_borders.size());

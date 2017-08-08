@@ -44,7 +44,7 @@ vote_file = "demographic/{}_votes.csv"
 def ens_dir(f, quiet = False):
   if not os.path.isdir(f):
     os.makedirs(f)
-    print("Remade file", f)
+    # print("Remade file", f)
 
 def ens_data(usps): 
 
@@ -259,7 +259,8 @@ def cache_race_file(usps, filename = None):
   pd.read_sql("""SELECT
                    rn.rn, d.state, d.county cid, d.tract,
                    b01001_001e pop, b01001a_001e white,
-                   b01001b_001e black, b01001i_001e hispanic
+                   b01001b_001e black, b01001i_001e hispanic,
+                   total_vap, black_vap, hispanic_vap
                  FROM census_tracts_2015 AS g
                  JOIN states AS s ON
                    g.state = s.fips
@@ -483,6 +484,12 @@ def save_json(filename, usps, method, uid, gdf, crm, metrics):
       dist["Populations"]["TargetFrac"] = float(row["Population"]/target)
       dist["Populations"]["BlackFrac"] = float(row["black"]/row["Population"])
       dist["Populations"]["HispanicFrac"] = float(row["hispanic"]/row["Population"])
+
+      dist["Populations"]["VAP"] = int(row["total_vap"])
+      dist["Populations"]["BlackVAP"] = int(row["black_vap"])
+      dist["Populations"]["HispanicVAP"] = int(row["hispanic_vap"])
+      dist["Populations"]["BlackVAPFrac"] = float(row["black_vap"]/row["total_vap"])
+      dist["Populations"]["HispanicVAPFrac"] = float(row["hispanic_vap"]/row["total_vap"])
 
       for k in metrics: dist["Spatial"][k] = float(row[k])
 

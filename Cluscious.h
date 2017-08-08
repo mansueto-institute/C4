@@ -307,7 +307,7 @@ namespace Cluscious {
       std::vector<Node*>   nodes;
 
       void assign_to_zero();
-      void power_restart(int seed, int niter, float tol);
+      void power_restart(int seed, int niter, float tol, int = false);
       void split_restart(int seed, ObjectiveMethod om);
       bool split_region(int r = 0, float a = -1, bool connect = true);
       bool merge_regions(int rA, int rB);
@@ -316,7 +316,7 @@ namespace Cluscious {
       void grow_kmeans(int popgrow);
       void grow_random(int seed = 0);
 
-      void iterate_power(float tol, int niter, int reset = false); // , int popgrow = false);
+      void iterate_power(float tol, int niter, int reset = false, int verbose = false); // , int popgrow = false);
       void voronoi_classify();
       // void center_power_cells();
       

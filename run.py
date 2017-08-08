@@ -119,7 +119,7 @@ def main(state, seed, method, ncycles, split_restart, power_restart, niter, nloo
 
     sinit = init.split(":")
     npiter = int(sinit[1]) if len(init) > 1 else 10000
-    u.iterate_power(tol, npiter, 1)
+    u.iterate_power(tol, npiter, 1, verbose)
 
   elif "rand" in init:
     u.rand_init(seed)
@@ -153,7 +153,7 @@ def main(state, seed, method, ncycles, split_restart, power_restart, niter, nloo
         if power_restart:
           sinit = init.split(":")
           npiter = int(sinit[1]) if len(init) > 1 else 10000
-          u.power_restart(seed + c * 1000, npiter, tol)
+          u.power_restart(seed + c * 1000, npiter, tol, verbose)
 
         if split_restart:
           print("rebooting")
@@ -251,6 +251,7 @@ if __name__ == "__main__":
 
   if args.no_plot: shading = []
 
+  # print(vars(args))
   main(**vars(args))
 
 

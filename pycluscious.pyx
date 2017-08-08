@@ -69,7 +69,7 @@ cdef extern from "Cluscious.h" namespace "Cluscious" :
         void add_cell_to_region(int cid, int rid)
 
         void assign_to_zero() except +
-        void power_restart(int s, int n, float tol)
+        void power_restart(int s, int n, float tol, int verbose)
         void split_restart(int, ObjectiveMethod) except +
         int  split_region(int, float) except +
         int  merge_regions(int, int) except +
@@ -90,7 +90,7 @@ cdef extern from "Cluscious.h" namespace "Cluscious" :
 
         int  oiterate(ObjectiveMethod, int, float, int, int, int, int);
 
-        void iterate_power(float, int, int)
+        void iterate_power(float, int, int, int)
 
 
 
@@ -175,8 +175,8 @@ cdef class universe:
     def assign_to_zero(self):
         self.c_univ.assign_to_zero()
 
-    def power_restart(self, int s, int n, float tol):
-        self.c_univ.power_restart(s, n, tol)
+    def power_restart(self, int s, int n, float tol, int verbose):
+        self.c_univ.power_restart(s, n, tol, verbose)
 
     def split_restart(self, int s, int om_i):
         self.c_univ.split_restart(s, ObjectiveMethod(om_i))
@@ -264,8 +264,8 @@ cdef class universe:
         if not maxi: maxi = 1e9
         return self.c_univ.destrand(mini, maxi)
 
-    def iterate_power(self, float tol, int niter = 1, int reset = 0):
-        self.c_univ.iterate_power(tol, niter, reset)
+    def iterate_power(self, float tol, int niter = 1, int reset = 0, int verbose = 0):
+        self.c_univ.iterate_power(tol, niter, reset, verbose)
 
     def iterate(self, int niter = 1, float tol = 0.05, int r = -1):
         self.c_univ.iterate(niter, tol, r)
