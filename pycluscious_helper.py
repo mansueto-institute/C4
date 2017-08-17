@@ -23,7 +23,6 @@ import geopandas as gpd
 import numpy as np
 import psycopg2
 
-import ps_query
 
 # Needed to keep the centroids in the boundary.
 import shapely
@@ -46,14 +45,14 @@ def ens_dir(f, quiet = False):
     os.makedirs(f)
     # print("Remade file", f)
 
-def ens_data(usps): 
+def ens_data(usps, blocks): 
 
   ens_dir("shapes/")
   ens_dir("demographic/")
   cache_stateinfo(usps)
-  cache_shapefile(usps)
-  cache_edge_file(usps)
-  cache_node_file(usps)
+  cache_shapefile(usps, blocks)
+  cache_edge_file(usps, blocks)
+  cache_node_file(usps, blocks)
   cache_race_file(usps)
 
 
@@ -144,10 +143,9 @@ def get_state_info(usps):
    return pd.read_csv(stateinfo.format(usps.lower()) + ".csv").ix[0]
 
 
-def cache_stateinfo(usps, filename = None):
+def cache_stateinfo(usps):
 
-   if not filename:
-      filename = stateinfo.format(usps.lower())
+   filename = stateinfo.format(usps.lower())
 
    if os.path.exists(filename + ".csv"): return
 
@@ -155,6 +153,8 @@ def cache_stateinfo(usps, filename = None):
      print("Failed -- no geo db authentication or cached files.")
      sys.exit(7)
 
+   if blocks: import ps_block_query as query
+   else:      import ps_query as query
 
    con = psycopg2.connect(database = "census", user = user, password = passwd,
                           host = "saxon.harris.uchicago.edu", port = 5432)
@@ -162,17 +162,16 @@ def cache_stateinfo(usps, filename = None):
    info = pd.read_sql("SELECT epsg, fips, seats FROM states WHERE usps = upper('{}');".format(usps), con)
    info.to_csv(filename + ".csv", index = False)
 
-
-   state_df = gpd.GeoDataFrame.from_postgis(ps_query.states.format(usps), con,
+   state_df = gpd.GeoDataFrame.from_postgis(query.states.format(usps), con,
                                             geom_col='state', crs = from_epsg(get_epsg(usps)))
 
    state_df[["id", "state"]].to_file(filename + ".shp")
 
 
-def cache_shapefile(usps, filename = None):
+def cache_shapefile(usps, blocks = False):
 
-   if not filename:
-      filename = shapefile.format(usps.lower())
+   tag = "_blocks" if blocks else ""
+   filename = shapefile.format(usps.lower() + tag)
 
    if os.path.exists(filename): return
 
@@ -180,13 +179,15 @@ def cache_shapefile(usps, filename = None):
      print("Failed -- no geo db authentication or cached files.")
      sys.exit(7)
 
+   if blocks: import ps_block_query as query
+   else:      import ps_query as query
 
    state = get_state_info(usps)
 
    con = psycopg2.connect(database = "census", user = user, password = passwd,
                           host = "saxon.harris.uchicago.edu", port = 5432)
 
-   geo_df = gpd.GeoDataFrame.from_postgis(ps_query.tracts.format(state["fips"]), con,
+   geo_df = gpd.GeoDataFrame.from_postgis(query.shapes.format(state["fips"]), con,
                                           geom_col='geometry', crs = from_epsg(state["epsg"]))
 
    geo_df["id"] = geo_df.index
@@ -194,10 +195,10 @@ def cache_shapefile(usps, filename = None):
 
 
 
-def cache_edge_file(usps, filename = None):
+def cache_edge_file(usps, blocks = False):
 
-   if not filename:
-      filename = edge_file.format(usps.lower())
+   tag = "_blocks" if blocks else ""
+   filename = edge_file.format(usps.lower() + tag)
 
    if os.path.exists(filename + ".csv"): return
 
@@ -205,13 +206,15 @@ def cache_edge_file(usps, filename = None):
      print("Failed -- no geo db authentication or cached files.")
      sys.exit(7)
 
+   if blocks: import ps_block_query as query
+   else:      import ps_query as query
 
    state = get_state_info(usps)
 
    con = psycopg2.connect(database = "census", user = user, password = passwd,
                           host = "saxon.harris.uchicago.edu", port = 5432)
 
-   geo_df = gpd.GeoDataFrame.from_postgis(ps_query.edges.format(state["fips"]), con,
+   geo_df = gpd.GeoDataFrame.from_postgis(query.edges.format(state["fips"]), con,
                                           geom_col='lines', crs = from_epsg(state["epsg"]))
 
    geo_df[geo_df["rev"] == False][["eid", "lines"]].to_file(filename + ".shp")
@@ -219,10 +222,10 @@ def cache_edge_file(usps, filename = None):
    geo_df[["rn","seq","eid","rev","nodea","nodeb"]].to_csv(filename + ".csv", index = False)
 
 
-def cache_node_file(usps, filename = None):
+def cache_node_file(usps, blocks = False):
 
-   if not filename:
-      filename = node_file.format(usps.lower())
+   tag = "_blocks" if blocks else ""
+   filename = node_file.format(usps.lower() + tag)
 
    if os.path.exists(filename + ".csv"): return
 
@@ -230,13 +233,15 @@ def cache_node_file(usps, filename = None):
      print("Failed -- no geo db authentication or cached files.")
      sys.exit(7)
 
+   if blocks: import ps_block_query as query
+   else:      import ps_query as query
 
    state = get_state_info(usps)
 
    con = psycopg2.connect(database = "census", user = user, password = passwd,
                           host = "saxon.harris.uchicago.edu", port = 5432)
 
-   ndf = pd.read_sql(ps_query.nodes.format(state["fips"]), con)
+   ndf = pd.read_sql(query.nodes.format(state["fips"]), con)
 
    ndf[["nid", "x", "y", "nseq", "eid"]].to_csv(filename + ".csv", index = False)
 
@@ -246,9 +251,10 @@ def cache_node_file(usps, filename = None):
    geo_ndf[ndf["nseq"] == 1][["nid", "geometry"]].to_file(filename + ".shp")
 
 
-def cache_race_file(usps, filename = None):
+def cache_race_file(usps, tag = None):
 
-  if not filename: filename = race_file.format(usps.lower())
+  filename = race_file.format(usps.lower())
+  if tag: filename = filename.replace(".", "_" + tag + ".")
 
   if os.path.exists(filename): return
 
@@ -418,7 +424,7 @@ def plot_map(gdf, filename, crm, hlt = None, shading = "district", figsize = 10,
     plt.close('all')
 
 
-def save_json(filename, usps, method, uid, gdf, crm, metrics):
+def save_json(filename, usps, method, uid, gdf, crm, metrics, tracts = True):
 
     of = open(filename, 'w')
 
@@ -430,7 +436,7 @@ def save_json(filename, usps, method, uid, gdf, crm, metrics):
     gdf["C"] = pd.Series(crm)
 
     elections = []
-    if usps and os.path.exists(vote_file.format(usps.lower())):
+    if usps and os.path.exists(vote_file.format(usps.lower())) and tracts:
       votes = pd.read_csv(vote_file.format(usps.lower()), index_col = "rn")
       votes = votes.filter(regex = '[DR][0-9]{2}', axis = 1)
 
@@ -438,7 +444,8 @@ def save_json(filename, usps, method, uid, gdf, crm, metrics):
       vote_columns = list(votes.columns)
       elections = set([int(el[1:]) + (1900 if int(el[1:]) > 50 else 2000) for el in votes.columns])
 
-    if usps and os.path.exists(race_file.format(usps.lower())):
+    race = None
+    if usps and os.path.exists(race_file.format(usps.lower())) and tracts:
       race = pd.read_csv(race_file.format(usps.lower()), index_col = "rn")
       race.rename(columns = {"pop" : "TotalPopulation"}, inplace = True)
       gdf = gdf.join(race)
@@ -478,18 +485,20 @@ def save_json(filename, usps, method, uid, gdf, crm, metrics):
     for ri, row in dis.iterrows():
 
       dist = {"ID" : int(ri), "Populations" : {}, "Elections" : {}, "Spatial" : {}}
-      dist["Populations"]["Total"] = int(row["Population"])
-      dist["Populations"]["Black"] = int(row["black"])
-      dist["Populations"]["Hispanic"] = int(row["hispanic"])
-      dist["Populations"]["TargetFrac"] = float(row["Population"]/target)
-      dist["Populations"]["BlackFrac"] = float(row["black"]/row["Population"])
-      dist["Populations"]["HispanicFrac"] = float(row["hispanic"]/row["Population"])
 
-      dist["Populations"]["VAP"] = int(row["total_vap"])
-      dist["Populations"]["BlackVAP"] = int(row["black_vap"])
-      dist["Populations"]["HispanicVAP"] = int(row["hispanic_vap"])
-      dist["Populations"]["BlackVAPFrac"] = float(row["black_vap"]/row["total_vap"])
-      dist["Populations"]["HispanicVAPFrac"] = float(row["hispanic_vap"]/row["total_vap"])
+      if race:
+        dist["Populations"]["Total"] = int(row["Population"])
+        dist["Populations"]["Black"] = int(row["black"])
+        dist["Populations"]["Hispanic"] = int(row["hispanic"])
+        dist["Populations"]["TargetFrac"] = float(row["Population"]/target)
+        dist["Populations"]["BlackFrac"] = float(row["black"]/row["Population"])
+        dist["Populations"]["HispanicFrac"] = float(row["hispanic"]/row["Population"])
+
+        dist["Populations"]["VAP"] = int(row["total_vap"])
+        dist["Populations"]["BlackVAP"] = int(row["black_vap"])
+        dist["Populations"]["HispanicVAP"] = int(row["hispanic_vap"])
+        dist["Populations"]["BlackVAPFrac"] = float(row["black_vap"]/row["total_vap"])
+        dist["Populations"]["HispanicVAPFrac"] = float(row["hispanic_vap"]/row["total_vap"])
 
       for k in metrics: dist["Spatial"][k] = float(row[k])
 
@@ -512,12 +521,12 @@ def save_json(filename, usps, method, uid, gdf, crm, metrics):
 
 
 
-def save_geojson(gdf, filename, crm, usps = None, metrics = None):
+def save_geojson(gdf, filename, crm, usps = None, metrics = None, tracts = True):
 
     gdf["C"] = pd.Series(crm)
 
     elections, vote_columns = [], []
-    if usps and os.path.exists(vote_file.format(usps.lower())):
+    if usps and os.path.exists(vote_file.format(usps.lower())) and tracts:
       votes = pd.read_csv(vote_file.format(usps.lower()), index_col = "rn")
       votes = votes.filter(regex = '[DR][0-9]{2}', axis = 1)
 

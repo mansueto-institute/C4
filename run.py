@@ -13,18 +13,21 @@ import operator
 
 import time
 
-def load_data(state, method):
+def load_data(state, method, blocks):
 
-  ens_data(state)
+  ens_data(state, blocks)
 
   if get_seats(state) == 1:
     print(state, "has a single districting -- returning.")
     sys.exit()
 
   u = pycl.universe(get_seats(state))
+
+  tag = ""
+  if blocks: tag = "_blocks"
   
-  gdf = gpd.read_file(shapefile.format(state))
-  edges, spw = spw_from_shapefile(shapefile.format(state))
+  gdf = gpd.read_file(shapefile.format(state + tag))
+  edges, spw = spw_from_shapefile(shapefile.format(state + tag))
   gdf["ps_n"] = pd.Series(spw.neighbors)
   gdf["ps_w"] = pd.Series(spw.weights)
   gdf["edge"] = pd.Series(edges) > 1e-3
@@ -42,7 +45,7 @@ def load_data(state, method):
 
   
   ### Add the edges....
-  edf = pd.read_csv(edge_file.format(state) + ".csv")
+  edf = pd.read_csv(edge_file.format(state + tag) + ".csv")
   rn, first, skip_rest = -1, -1, False
   for ei, e in edf.iterrows():
 
@@ -50,7 +53,7 @@ def load_data(state, method):
   
   
   ### Add the nodes....
-  ndf = pd.read_csv(node_file.format(state) + ".csv")
+  ndf = pd.read_csv(node_file.format(state + tag) + ".csv")
   node = -1
   for ni, n in ndf.iterrows():
   
@@ -99,9 +102,9 @@ def point_df(u, point = True):
 
 def main(state, seed, method, ncycles, split_restart, power_restart, niter, nloops, tol, conv_iter, init, write, 
          grasp, allow_trades, destrand_inputs, destrand_min, destrand_max, tabu_length,
-         circle, ring, point, print_init, no_plot, shading, borders, verbose):
+         circle, ring, point, print_init, no_plot, shading, borders, verbose, blocks):
 
-  u, gdf = load_data(state, method)
+  u, gdf = load_data(state, method, blocks)
 
   u.RANDOM       = grasp 
   u.TRADE        = allow_trades
@@ -194,10 +197,12 @@ def main(state, seed, method, ncycles, split_restart, power_restart, niter, nloo
 
     save_json("res/json/{}.json".format(write_cycle.replace("/", "_")),
               state, pycl_short[method], write_cycle, gdf, crm = u.cell_region_map(),
-              metrics = {pycl_short[k] : u.get_objectives(v) for k, v in pycl_methods.items()})
+              metrics = {pycl_short[k] : u.get_objectives(v) for k, v in pycl_methods.items()},
+              tracts = False)
 
     save_geojson(gdf, "res/{}/final.geojson".format(write_cycle), u.cell_region_map(), state,
-                 metrics = {pycl_short[k] : u.get_objectives(v) for k, v in pycl_methods.items()})
+                 metrics = {pycl_short[k] : u.get_objectives(v) for k, v in pycl_methods.items()},
+                 tracts = False)
 
 
 if __name__ == "__main__":
@@ -211,6 +216,7 @@ if __name__ == "__main__":
   parser.add_argument("-s", "--state",     default = "pa", type=str.lower, choices = us_states, help='state')
   parser.add_argument("-w", "--write",     default = "", type = str)
   parser.add_argument("-m", "--method",    default = "dist_a", choices = pycl_formal, type = str)
+  parser.add_argument("-b", "--blocks",    action  = "store_true")
 
   # Looping parameters.
   parser.add_argument("-c", "--ncycles",   default = 1, type = int, help = "Number of restarts (split/merge)")
