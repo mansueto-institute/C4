@@ -44,7 +44,7 @@ vote_file = "demographic/{}_votes.csv"
 def ens_dir(f, quiet = False):
   if not os.path.isdir(f):
     os.makedirs(f)
-    print("Remade file", f)
+    # print("Remade file", f)
 
 def ens_data(usps): 
 
@@ -113,7 +113,8 @@ pycl_short  = {
                "rohrbach"    : "DistPerimeter",
                "exchange"    : "Exchange",
                "path_frac"   : "PathFraction",
-               "power"       : "PowerDiagram"
+               "power"       : "PowerDiagram",
+               "split"       : "SplitLine"
               }
 
 
@@ -258,7 +259,8 @@ def cache_race_file(usps, filename = None):
   pd.read_sql("""SELECT
                    rn.rn, d.state, d.county cid, d.tract,
                    b01001_001e pop, b01001a_001e white,
-                   b01001b_001e black, b01001i_001e hispanic
+                   b01001b_001e black, b01001i_001e hispanic,
+                   total_vap, black_vap, hispanic_vap
                  FROM census_tracts_2015 AS g
                  JOIN states AS s ON
                    g.state = s.fips
@@ -281,7 +283,7 @@ def cache_race_file(usps, filename = None):
 
 
 
-def plot_map(gdf, filename, crm, hlt = None, shading = "district", figsize = 10, label = "", ring = None, circ = None, point = None, legend = False):
+def plot_map(gdf, filename, crm, hlt = None, shading = "district", figsize = 10, label = "", ring = None, circ = None, point = None, scores = None, legend = False):
 
     gdf["C"] = pd.Series(crm)
 
@@ -307,6 +309,7 @@ def plot_map(gdf, filename, crm, hlt = None, shading = "district", figsize = 10,
     bins = min(5, dis.shape[0])
     q = ps.Quantiles(dis["frac"], k = bins)
 
+    if scores: dis["scores"] = pd.Series(scores)
 
     if "target" in shading:
 
@@ -341,6 +344,32 @@ def plot_map(gdf, filename, crm, hlt = None, shading = "district", figsize = 10,
       cb.update_ticks()
 
       # if hlt: gdf[gdf["H"] == 1].plot(facecolor = "red", alpha = 0.1, linewidth = 0.05, ax = ax)
+
+    elif "scores" in shading:
+
+      col, alpha, trunc = "cool", 0.7, ""
+    
+      norm = Normalize(vmin = min(scores.values()), vmax = max([1, max(scores.values())]))
+      # print(sum(scores.values()))
+    
+      cmap = plt.cm.ScalarMappable(norm=norm, cmap = col)
+      
+      ax = dis.plot(color = "white", edgecolor = "white", figsize = fs)
+      for xi, row in dis.iterrows(): dis[dis.index == xi].plot(ax = ax, alpha = alpha, facecolor = cmap.to_rgba(row["scores"]))
+
+      fig = ax.get_figure()
+      cax = fig.add_axes([0.16, 0.13, 0.70, 0.015 * np.sqrt(xr/yr)])
+      sm = plt.cm.ScalarMappable(cmap = col, norm=norm)
+      sm._A = [] # gross
+    
+      cb = fig.colorbar(sm, cax = cax, alpha = alpha, # label = "Population / Target" + trunc, labelsize=12,
+                        orientation='horizontal', drawedges = True)
+      cb.locator = ticker.MaxNLocator(nbins=5)
+      cb.formatter.set_useOffset(False)
+      cb.set_label("Score", size=12)
+      cb.ax.tick_params(labelsize=12)
+      cb.dividers.set_visible(False)
+      cb.update_ticks()
 
     elif "density" in shading:
       ax = gdf.plot(column = "density", cmap = "gray", scheme = "quantiles", k = 9, alpha = 0.8, figsize = fs, linewidth = 0)
@@ -456,6 +485,12 @@ def save_json(filename, usps, method, uid, gdf, crm, metrics):
       dist["Populations"]["TargetFrac"] = float(row["Population"]/target)
       dist["Populations"]["BlackFrac"] = float(row["black"]/row["Population"])
       dist["Populations"]["HispanicFrac"] = float(row["hispanic"]/row["Population"])
+
+      dist["Populations"]["VAP"] = int(row["total_vap"])
+      dist["Populations"]["BlackVAP"] = int(row["black_vap"])
+      dist["Populations"]["HispanicVAP"] = int(row["hispanic_vap"])
+      dist["Populations"]["BlackVAPFrac"] = float(row["black_vap"]/row["total_vap"])
+      dist["Populations"]["HispanicVAPFrac"] = float(row["hispanic_vap"]/row["total_vap"])
 
       for k in metrics: dist["Spatial"][k] = float(row[k])
 
