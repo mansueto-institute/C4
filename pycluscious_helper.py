@@ -291,6 +291,7 @@ def plot_map(gdf, filename, crm, hlt = None, shading = "district", figsize = 10,
 
     if shading == "density":
       gdf["density"] = gdf["pop"]/gdf["a"]
+      gdf.loc[gdf["density"].isnull(), "density"] = 0.
 
     dis = gdf.dissolve("C", aggfunc='sum')
     dis.reset_index(inplace = True)
