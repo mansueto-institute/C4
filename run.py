@@ -13,15 +13,17 @@ import operator
 
 import time
 
-def load_data(state, method, blocks):
+def load_data(state, method, seats = None, blocks = False):
 
   ens_data(state, blocks)
 
-  if get_seats(state) == 1:
+  if not seats: seats = get_seats(state) 
+
+  if seats == 1:
     print(state, "has a single districting -- returning.")
     sys.exit()
 
-  u = pycl.universe(get_seats(state))
+  u = pycl.universe(seats)
 
   tag = ""
   if blocks: tag = "_blocks"
@@ -100,11 +102,11 @@ def point_df(u, point = True):
                                     for r in range(u.nregions)]])
 
 
-def main(state, seed, method, ncycles, split_restart, power_restart, niter, nloops, tol, conv_iter, init, write, 
+def main(state, seed, method, seats, ncycles, split_restart, power_restart, niter, nloops, tol, conv_iter, init, write, 
          grasp, allow_trades, destrand_inputs, destrand_min, destrand_max, tabu_length,
          circle, ring, point, print_init, no_plot, shading, borders, verbose, blocks):
 
-  u, gdf = load_data(state, method, blocks)
+  u, gdf = load_data(state, method, seats, blocks)
 
   u.RANDOM       = grasp 
   u.TRADE        = allow_trades
@@ -243,6 +245,9 @@ if __name__ == "__main__":
   parser.add_argument("--no_plot",         action  = "store_true")
   parser.add_argument("--borders",         default = "", choices = ["ext", "int"])
   parser.add_argument("--print_init",      action  = "store_true")
+
+  # Number of seats -- default is US Cong.
+  parser.add_argument("--seats",           default = 0, type = int)
 
   # Verbosity
   parser.add_argument("-v", "--verbose",   default = 0, type = int)

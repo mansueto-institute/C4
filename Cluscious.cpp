@@ -3156,7 +3156,7 @@ namespace Cluscious {
       mersenne.seed(total_iterations + seed); // Different splits of loops etc. should be reproducible.
       total_iterations++;
 
-      if (!(i%100) || verbose) cout << "iteration " << i << endl;
+      if (!(i%100) && verbose) cout << "iteration " << i << endl;
 
       for (auto rit : regions) { // over all regions...
 

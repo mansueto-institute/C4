@@ -1,7 +1,7 @@
 states = """SELECT fips AS id, ST_Simplify(ST_Transform(geom, epsg), 5) AS state 
             FROM states WHERE usps = upper('{}');"""
 
-tracts = """SELECT census_tracts_2015.county, census_tracts_2015.tract, 
+shapes = """SELECT census_tracts_2015.county, census_tracts_2015.tract, 
                    ST_Transform(census_tracts_2015.geomsimp, states.epsg) as geometry, 
                    ST_X(ST_Transform(census_tracts_2015.centroid, states.epsg)) as x, 
                    ST_Y(ST_Transform(census_tracts_2015.centroid, states.epsg)) as y,
@@ -15,7 +15,7 @@ tracts = """SELECT census_tracts_2015.county, census_tracts_2015.tract,
             JOIN states ON fips = census_tracts_2015.state 
             WHERE census_tracts_2015.state = {}
             ORDER BY county, tract;
-          """
+         """
 
 edges  = """
          SELECT
