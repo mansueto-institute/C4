@@ -114,7 +114,10 @@ def main(state, seed, method, seats, ncycles, split_restart, power_restart, nite
   u.DESTRAND_MIN = destrand_min
   u.DESTRAND_MAX = destrand_max
 
-  if not init or "kmeans" in init:
+  if not init:
+    u.rand_init(seed)
+
+  elif "kmeans" in init:
     u.rand_init(seed)
     u.grow_kmeans(method == "dist_p") # True is population growing
 

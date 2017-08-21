@@ -377,13 +377,15 @@ def plot_map(gdf, filename, crm, hlt = None, shading = "district", figsize = 10,
       cb.dividers.set_visible(False)
       cb.update_ticks()
 
+      if hlt: gdf[gdf["H"] == 1].plot(facecolor = "grey", alpha = 0.1, linewidth = 0.05, ax = ax)
+
     elif "density" in shading:
       ax = gdf.plot(column = "density", cmap = "gray", scheme = "quantiles", k = 9, alpha = 0.8, figsize = fs, linewidth = 0)
 
       dis.plot(color = "blue", alpha = 0.3, linewidth = 1, ax = ax)
 
     else:
-      ax = dis.plot("C", alpha = 0.5, categorical = True, cmap = "nipy_spectral", linewidth = 1, legend = legend, figsize = fs)
+      ax = dis.plot("C", alpha = 0.5, categorical = True, cmap = "nipy_spectral", linewidth = 0.20, legend = legend, figsize = fs)
 
       if legend: ax.get_legend().set_bbox_to_anchor((1, 1))
 

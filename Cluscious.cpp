@@ -277,6 +277,7 @@ namespace Cluscious {
     std::unordered_set<int> rval;
     for (auto& n : nm)
       if (n.first->region != region && 
+          n.first->region >= 0 && 
           (QUEEN || n.second > 0))
         rval.insert(n.first->region);
 
@@ -556,7 +557,7 @@ namespace Cluscious {
     add_cell_int_ext_neighbors(c);
 
     // if (has_topo && node_ring.size()) divert_ring_at_cell(c, true);
-    if (has_topo && node_ring.size()) make_ring();
+    if (has_topo && node_ring.size() && ncells > 2) make_ring();
 
     Ia = inertia_parallel_axis(Ia, xctr,  yctr,  area, c->x, c->y, c->area);
     Ip = inertia_parallel_axis(Ip, xpctr, ypctr, pop,  c->x, c->y, c->pop);
@@ -672,7 +673,7 @@ namespace Cluscious {
     remove_cell_int_ext_neighbors(c);
 
     // if (has_topo && node_ring.size()) divert_ring_at_cell(c, false);
-    if (has_topo && node_ring.size()) make_ring();
+    if (has_topo && node_ring.size() && ncells > 2) make_ring();
 
     Ia = inertia_parallel_axis(Ia, xctr,  yctr,  area, c->x, c->y, -c->area);
     Ip = inertia_parallel_axis(Ip, xpctr, ypctr, pop,  c->x, c->y, -c->pop);
@@ -807,9 +808,14 @@ namespace Cluscious {
 
   std::vector<std::pair<float, float> > Region::get_point_ring() {
 
-    make_ring();
-
     std::vector<std::pair<float, float> > point_ring;
+    if (ncells < 2) {
+      point_ring.push_back(std::make_pair(xctr, yctr));
+      point_ring.push_back(std::make_pair(xctr, yctr));
+      return point_ring;
+    }
+
+    make_ring();
 
     for (auto n : node_ring) {
       point_ring.push_back(std::make_pair(n->x, n->y));
@@ -2941,6 +2947,10 @@ namespace Cluscious {
     for (auto r : regions) {
       for (auto b : r->ext_borders) {
 
+        // It's not a "strand" if it hasn't
+        // been assigned to a region.
+        if (b->region < 0) continue;
+
         std::unordered_set<Cell*> strand;
         size_t strand_max = max;
         if (2*max > regions[b->region]->ncells)
@@ -2949,9 +2959,14 @@ namespace Cluscious {
         b->neighbor_strands(strand, strand_max);
 
         bool strand_is_tabu = false;
-        for (auto c : strand) 
+        bool strand_is_uninit = false;
+        for (auto c : strand) {
           if (is_tabu(c)) strand_is_tabu = true;
-        if (strand_is_tabu) continue;
+          if (c->region < 0) strand_is_uninit = true;
+          for (auto n : c->nm)
+            if (n.first->region < 0) strand_is_uninit = true;
+        }
+        if (strand_is_tabu || strand_is_uninit) continue;
 
         if (strand.size() > opt_strand.size()) {
           opt_strand = strand;
@@ -3082,7 +3097,7 @@ namespace Cluscious {
       transfer_strand(opt_strands);
 
       if (verbose) cout << "Moving cell " << b_opt_c->id << " from region " << rem_reg << " to " << rit->id << endl;
-      regions[rem_reg]->remove_cell(b_opt_c);
+      if (rem_reg >= 0) regions[rem_reg]->remove_cell(b_opt_c);
       rit->add_cell(b_opt_c);
 
       set_tabu(b_opt_c);
@@ -3103,16 +3118,19 @@ namespace Cluscious {
      if (is_tabu(b)) return false; 
 
      float dpop  = r->pop / target - 1;
-     float dbpop = regions[b->region]->pop / target - 1;
+     float dbpop = nregions; // if it's not yet assigned, highest priority.
+     if (b->region >= 0) dbpop = regions[b->region]->pop / target - 1;
 
      float dp_ij = sign(dbpop - dpop) * pow(fabs(dpop - dbpop)/tol, ALPHA);
 
      // current r objective fn is constant across the set we're evaluating over
      // (everything in this region), so don't worry about subtracting off its current value
      // For now, DO recalculate the current obj fn for the other region.
-     float dF_ij = r                 ->obj(omethod, b, 0, verbose) + 
-                   regions[b->region]->obj(omethod, 0, b, verbose) - 
-                   regions[b->region]->obj(omethod, 0, 0, verbose);
+     float dF_ij = r                 ->obj(omethod, b, 0, verbose);
+     if (b->region >= 0) {
+       dF_ij += regions[b->region]->obj(omethod, 0, b, verbose) - 
+                regions[b->region]->obj(omethod, 0, 0, verbose);
+     }
 
      float dO_ij = dp_ij + dF_ij;
      if (verbose) cout << "Test moving " << b->id << " from r=" << b->region << " to " << r->id 
@@ -3122,21 +3140,24 @@ namespace Cluscious {
 
      if (dO_ij < best_move) return false;
      if (verbose) cout << "  >>  best move." << endl;
-     if (regions[b->region]->ncells == 1) return false;
+     if (b->region >= 0 && regions[b->region]->ncells == 1) return false;
      if (verbose) cout << "  >>  neighbor has enough cells!" << endl;
 
      std::unordered_set<Cell*> strands;
-     int max = (DESTRAND_MAX < regions[b->region]->ncells/2) ? DESTRAND_MAX : (regions[b->region]->ncells/2-1);
-     int nsets = b->neighbor_strands(strands, max, false);
-     if ((nsets != 1 && strands.size() < DESTRAND_MIN) || 
-         is_tabu_strand(strands)) {
-       if (verbose) cout << "  !!! not connected :: nsets=" << nsets 
-                         << "  strand size=" << strands.size() 
-                         << "  strands tabu=" << is_tabu_strand(strands) << endl;
-       return false;
+     if (b->region >= 0) {
+       int max = (DESTRAND_MAX < regions[b->region]->ncells/2) ? DESTRAND_MAX : (regions[b->region]->ncells/2-1);
+       int nsets = b->neighbor_strands(strands, max, false);
+       if ((nsets != 1 && strands.size() < DESTRAND_MIN) || 
+           is_tabu_strand(strands)) {
+         if (verbose) cout << "  !!! not connected :: nsets=" << nsets 
+           << "  strand size=" << strands.size() 
+             << "  strands tabu=" << is_tabu_strand(strands) << endl;
+         return false;
+       }
+
+       if (verbose) cout << "  >>  is connected." << endl;
      }
 
-     if (verbose) cout << "  >>  is connected." << endl;
      best_move = dO_ij;
      b_opt_c = b;
      opt_strands = strands;
