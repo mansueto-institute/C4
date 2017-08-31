@@ -115,7 +115,7 @@ namespace Cluscious {
           if (nei.first->region == region) continue; // foreign neighbors'
           for (auto nei_e : nei.first->edges) {      // edges;
             if (nei_e.id == e.id) {                  // if the edge is in both,
-              return eidx;                         // return the edge index. 
+              return eidx;                           // return the edge index. 
             }
           }
         }
@@ -266,6 +266,7 @@ namespace Cluscious {
     // cout << endl;
 
     // Should never arrive here.
+    cout << "Cell=" << id << "  region=" << region << ", edge=" << start_edge_id << endl;
     assert(0 && "Never found the next border -- made a full loop!!\nIs the cell's region set correctly?");
 
     return false;
@@ -550,17 +551,22 @@ namespace Cluscious {
 
   void Region::add_cell(Cell* c, bool UPDATE_CTR = true) {
 
+    DEBUG_ME;
+
     ncells++;
     c->region = id;
     cells.insert(c);
 
+    DEBUG_ME;
     add_cell_int_ext_neighbors(c);
+    DEBUG_ME;
 
     // if (has_topo && node_ring.size()) divert_ring_at_cell(c, true);
     if (has_topo && node_ring.size() && ncells > 2) make_ring();
 
     Ia = inertia_parallel_axis(Ia, xctr,  yctr,  area, c->x, c->y, c->area);
     Ip = inertia_parallel_axis(Ip, xpctr, ypctr, pop,  c->x, c->y, c->pop);
+    DEBUG_ME;
 
     if (UPDATE_CTR) {
       xctr  = (xctr  * area + c->x * c->area)/(area + c->area);
@@ -568,24 +574,30 @@ namespace Cluscious {
       xpctr = (xpctr * pop  + c->x * c->pop )/(pop  + c->pop );
       ypctr = (ypctr * pop  + c->y * c->pop )/(pop  + c->pop );
 
+    DEBUG_ME;
       update_scc(c, 0, true); // add cell, do update.
+    DEBUG_ME;
       if (has_topo && node_ring.size()) update_lic(c, 0, true);
+    DEBUG_ME;
       
       // not adding, since it's already since it's already in "cells".  don't care about return value; do update axes.
       update_pca(0, 0, false, true);
     }
+    DEBUG_ME;
 
     area += c->area;
     pop  += c->pop;
 
     // bgeo::union_(poly, c->poly, poly);
     bgeo::append(mpt, c->pt);
+    DEBUG_ME;
 
     if (!bgeo::within(c->pt, ch_poly)) {
       bgeo::clear(ch_poly);
       bgeo::convex_hull(mpt, ch_poly);
       ch_area = bgeo::area(ch_poly);
     }
+    DEBUG_ME;
 
   }
 
@@ -784,7 +796,7 @@ namespace Cluscious {
 
   bool Region::make_ring() { 
 
-    node_ring.clear();
+    // node_ring.clear();
     get_node_ring(node_ring);
     return node_ring.size();
 
@@ -837,7 +849,16 @@ namespace Cluscious {
   void Region::get_node_ring(std::vector<Node*> &ring,
                              Cell* curr_cell, int this_edge_idx) {
 
+    ring.clear();
+
     bool recursed = curr_cell; // safety -- one layer deep.
+
+    if (ncells == 1) {
+      for (auto e : (*cells.begin())->edges) {
+        ring.push_back(e.na);
+      }
+      return;
+    }
 
     // If a starting cell/edge is not provided, find a random one.
     // if we happen to choose a cell with only a corner connection
@@ -845,14 +866,17 @@ namespace Cluscious {
     for (auto ib = int_borders.begin();
          ib != int_borders.end() && this_edge_idx < 0; ++ib) {
       curr_cell = *ib;
-      if (curr_cell->region != id) continue;
+      if (curr_cell->region != id) continue; // region can be -1 if removing...
       if (curr_cell->is_split) continue; // just not worth starting here.
       if (curr_cell->split_neighbor) continue;
       this_edge_idx = curr_cell->get_ext_edge_idx();
     }
-    if (this_edge_idx < 0) {
-      DEBUG_ME; cout << "Region " << id << " no good start on get_node_ring(), with ncells=" << ncells << endl;
-      throw std::runtime_error(std::string("No good starting edge cell found!!"));
+    if (this_edge_idx < 0 && ncells > 5) {
+      cout << "WARNING :: Region " << id << " found no good start on get_node_ring(), "
+           << " with ncells=" << ncells << ".   Returning a random cell." << endl;
+
+      for (auto e : (*cells.begin())->edges) ring.push_back(e.na);
+      return;
     }
 
     int start_cell_id = curr_cell->id;
@@ -886,6 +910,7 @@ namespace Cluscious {
       if (node->size() > 3) {
 
         Cell* corner_cell; Edge* corner_edge;
+        cout << "edge id=" << this_edge->id << endl;
         curr_cell->next_edge_in_region(node, this_edge->id, corner_cell, corner_edge, false); // (false -> CCW)
 
         // If the two directions give different edges, we've got a corner.
@@ -1218,14 +1243,18 @@ namespace Cluscious {
 
   float Region::update_lic(Cell* add = 0, Cell* sub = 0, bool UPDATE = false) { 
 
+    DEBUG_ME;
     if (!node_ring.size()) {
+    DEBUG_ME;
       make_ring();
+    DEBUG_ME;
       if (!node_ring.size()) {  
         cerr << "Found a ring with size 0 in region " << id << ", which has "
              << cells.size() << " cells and an internal border of " << int_borders.size() << endl;
         throw std::runtime_error(std::string("Found a ring with size 0"));
       }
     }
+    DEBUG_ME;
 
     if (!add && !sub && !UPDATE) return r2_lic;
 
@@ -1242,10 +1271,12 @@ namespace Cluscious {
     }
 
     if (!in_circle && !UPDATE) return r2_lic;
+    DEBUG_ME;
 
     int add_reg = -1, sub_reg = -1;
     if (add) { add_reg = add->region; add->region = id; }
     if (sub) { sub_reg = sub->region; sub->region = -1; }
+    DEBUG_ME;
 
     std::vector<Node*> ring;
     get_node_ring(ring);
@@ -1253,6 +1284,7 @@ namespace Cluscious {
     if (add) { add->region = add_reg; }
     if (sub) { sub->region = sub_reg; }
 
+    DEBUG_ME;
 
     bg_poly poly;
     std::vector<bp_pt> poly_pts;
@@ -1263,6 +1295,7 @@ namespace Cluscious {
       poly_pts.push_back(bp_pt(n->x*VOR_SCALE, n->y*VOR_SCALE));
     }
     bgeo::append(poly, ring.front()->pt);
+    DEBUG_ME;
 
     construct_voronoi(poly_pts.begin(), poly_pts.end(), &vd);
 
@@ -1282,12 +1315,14 @@ namespace Cluscious {
         y_max    = bgeo::get<1>(pt_nom);
       }
     }
+    DEBUG_ME;
 
     if (UPDATE) { 
       r2_lic = dist_max*dist_max;
       x_lic  = x_max;
       y_lic  = y_max;
     }
+    DEBUG_ME;
 
     return dist_max*dist_max;
 
@@ -1470,6 +1505,14 @@ namespace Cluscious {
 
       cell_idx.insert(c);
       regions.push_back(new Region(ri, cells[c]));
+    }
+
+    if (loaded_topo) {
+      for (auto r : regions) {
+        r->has_topo = true;
+        r->make_ring();
+        r->update_lic(0, 0, true);
+      }
     }
 
   }
@@ -1917,8 +1960,10 @@ namespace Cluscious {
     for (size_t ri = 0; ri < nregions; ri++) 
       regions.push_back(new Region(ri));
 
-    for (auto& c : cells) 
+    for (auto& c : cells) {
+      if (reg_map[c->id] < 0) continue;
       regions[reg_map[c->id]]->add_cell(c);
+    }
 
     for (auto r : regions) r->reset_borders();
     if (loaded_topo) {
@@ -2985,10 +3030,12 @@ namespace Cluscious {
 
   bool Universe::trade(Region* ir, Region* single_er, ObjectiveMethod om, float tol) {
 
+    DEBUG_ME;
     std::unordered_map<int, bool> ib_connected;
     for (auto& ib : ir->int_borders) // ROOK, SLOW
       ib_connected[ib->id] = ib->neighbors_connected(false, false);
 
+    DEBUG_ME;
     RadiusType rt = obj_radius[om];
 
     float best = 0;
@@ -3002,23 +3049,32 @@ namespace Cluscious {
       curr_obj = ir->obj(om);
     }
 
+    DEBUG_ME;
 
     Cell *add = 0, *sub = 0;
     for (auto& eb : ir->ext_borders) {
 
+    DEBUG_ME;
+      if (eb->region < 0) continue; // unassigned.
+    DEBUG_ME;
       if (!eb->neighbors_connected(false, false)) continue;
+    DEBUG_ME;
   
       Region* er = regions[eb->region];
       // if (fabs(er->pop - ir->pop) > tol * target) continue;
 
+    DEBUG_ME;
       if (single_er && single_er != er) continue;
 
+    DEBUG_ME;
       for (auto& ib : ir->int_borders) {
 
+    DEBUG_ME;
         if (er->ext_borders.find(ib) == er->ext_borders.end()) continue;
 
         if (!ib_connected[ib->id]) continue;
         if ( ib->is_neighbor(eb) ) continue; // Not worth it....
+    DEBUG_ME;
 
         float delta(0);
         if (om == ObjectiveMethod::HULL_A    || om == ObjectiveMethod::POLSBY    ||
@@ -3029,19 +3085,28 @@ namespace Cluscious {
           delta = + er->dist(ib->x, ib->y, rt) + ir->dist(eb->x, eb->y, rt)  // mod distances 
                   - er->dist(ib->x, ib->y, rt) + ir->dist(eb->x, eb->y, rt); // nom distances
         }
+    DEBUG_ME;
 
         if (delta < best) {
           best = delta; add = eb; sub = ib;
+          DEBUG_ME; cout << "got a new one to switch!" << endl;
         }
+    DEBUG_ME;
       }
     }
+    DEBUG_ME;
 
     if (best < 0) {
+    DEBUG_ME;
       Region* er = regions[add->region];
+    DEBUG_ME;
       er->remove_cell(add); ir->add_cell(add);
+    DEBUG_ME;
       ir->remove_cell(sub); er->add_cell(sub);
+    DEBUG_ME;
       return true;
     }
+    DEBUG_ME;
 
     return false;
 
@@ -3055,6 +3120,7 @@ namespace Cluscious {
 
     // only iterate over adding external; 
     // int. cells will be removed as someone else's external.
+    DEBUG_ME; cout << rit->id << endl;
     if (random) { // Random greedy is grasp.
 
       float r_base = rit->obj(omethod, 0, 0, verbose);
@@ -3080,25 +3146,37 @@ namespace Cluscious {
 
     } else {
 
+    DEBUG_ME; cout << rit->id << endl;
       for (auto b : rit->ext_borders) {
 
+    DEBUG_ME; cout << rit->id << endl;
         if (r >= 0 && b->region != r && rit->id != r) continue;
-        if (verbose) cout << "At region " << rit->id << " considering removing EB cell " << b->id << endl;
+    DEBUG_ME; cout << rit->id << endl;
+        if (verbose) cout << "At region " << rit->id 
+                          << " considering grabbing EB cell " 
+                          << b->id << " from r=" << b->region << endl;
+    DEBUG_ME;
         greedy_evaluate(rit, b, tol, omethod, best_move, b_opt_c, opt_strands, verbose);
-
+    DEBUG_ME;
       }
+    DEBUG_ME;
     }
 
 
     if (b_opt_c) {
+    DEBUG_ME;
       int rem_reg = b_opt_c->region;
+    DEBUG_ME;
 
       // up to four cells....
       transfer_strand(opt_strands);
+    DEBUG_ME;
 
       if (verbose) cout << "Moving cell " << b_opt_c->id << " from region " << rem_reg << " to " << rit->id << endl;
       if (rem_reg >= 0) regions[rem_reg]->remove_cell(b_opt_c);
+    DEBUG_ME; cout << rit->id << endl;
       rit->add_cell(b_opt_c);
+    DEBUG_ME; cout << rit->id << endl;
 
       set_tabu(b_opt_c);
 
@@ -3106,6 +3184,7 @@ namespace Cluscious {
 
     }
         
+    DEBUG_ME;
     return false;
 
   }
@@ -3122,11 +3201,12 @@ namespace Cluscious {
      if (b->region >= 0) dbpop = regions[b->region]->pop / target - 1;
 
      float dp_ij = sign(dbpop - dpop) * pow(fabs(dpop - dbpop)/tol, ALPHA);
+     if (fabs(dp_ij) > 100) dp_ij = sign(dbpop - dpop) * 100;
 
      // current r objective fn is constant across the set we're evaluating over
      // (everything in this region), so don't worry about subtracting off its current value
      // For now, DO recalculate the current obj fn for the other region.
-     float dF_ij = r                 ->obj(omethod, b, 0, verbose);
+     float dF_ij = r->obj(omethod, b, 0, verbose);
      if (b->region >= 0) {
        dF_ij += regions[b->region]->obj(omethod, 0, b, verbose) - 
                 regions[b->region]->obj(omethod, 0, 0, verbose);
@@ -3134,7 +3214,7 @@ namespace Cluscious {
 
      float dO_ij = dp_ij + dF_ij;
      if (verbose) cout << "Test moving " << b->id << " from r=" << b->region << " to " << r->id 
-                       << " :: dp_ij=" << dp_ij << "(" << dpop << " > " << dbpop << ")"
+                       << " :: dp_ij=" << dp_ij << " (" << dpop << " > " << dbpop << ")"
                        << "  dF_ij=" << dF_ij << "  dO_ij=" << dO_ij << "     ";
      if (verbose) cout << " best now b=" << (b_opt_c ? b_opt_c->id : -1) << " val=" << best_move << endl;
 
@@ -3181,10 +3261,14 @@ namespace Cluscious {
 
       for (auto rit : regions) { // over all regions...
 
+    DEBUG_ME; cout << rit->id << endl;
         if (TRADE) trade(rit, 0, omethod, tol * 2);
+    DEBUG_ME; cout << rit->id << endl;
 
         float cut = RANDOM ? 0 : -1;
+    DEBUG_ME; cout << rit->id << endl;
         greedy(rit, omethod, tol, cut, RANDOM, r, verbose > 1);
+    DEBUG_ME; cout << rit->id << endl;
 
       }
 

@@ -85,13 +85,13 @@ def ring_df(u, ring = True):
 
   return gpd.GeoDataFrame(geometry=[LineString(u.get_point_ring(d)) for d in range(u.nregions)])
 
-def circle_df(u, circle = True):
+def circle_df(u, circle = False):
 
   if not circle: return None
 
   return gpd.GeoDataFrame(geometry=[Point(c[0][0], c[0][1]).buffer(c[1] if math.isfinite(c[1]) and c[1] > 0 else 1)
                                     for c in [u.get_circle_coords(r, pycl_circles[circle])
-                                    for r in range(u.nregions)]])
+                                              for r in range(u.nregions)]])
 
 def point_df(u, point = True):
 
@@ -191,7 +191,7 @@ def main(state, seed, method, seats, ncycles, split_restart, power_restart, nite
                  label = pycl_formal[method] if i else init.capitalize(),
                  crm = crm, hlt = u.border_cells(True if "ext" in borders else False) if borders else None, shading = s,
                  ring = ring_df(u, (ring or s == "density")),
-                 circ = circle_df(u, circle), point = point_df(u, point), scores = scores, legend = verbose)
+                 circ = circle_df(u, circle), point = point_df(u, point), scores = scores, legend = bool(verbose))
 
       with open ("res/{}/{}.csv".format(write_cycle, tag), "w") as out:
         for k, v in crm.items(): out.write("{},{}\n".format(k, v))
