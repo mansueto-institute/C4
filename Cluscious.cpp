@@ -3044,8 +3044,7 @@ namespace Cluscious {
     // As in greedy, this is constant, but we want a 0 baseline.
     if (om == ObjectiveMethod::HULL_A    || om == ObjectiveMethod::HULL_P || 
         om == ObjectiveMethod::INERTIA_A || om == ObjectiveMethod::INERTIA_P ||
-        om == ObjectiveMethod::ROHRBACH  || om == ObjectiveMethod::EHRENBURG ||
-        om == ObjectiveMethod::POLSBY) {
+        om == ObjectiveMethod::ROHRBACH  || om == ObjectiveMethod::POLSBY) {
       curr_obj = ir->obj(om);
     }
 
@@ -3077,9 +3076,9 @@ namespace Cluscious {
     DEBUG_ME;
 
         float delta(0);
-        if (om == ObjectiveMethod::HULL_A    || om == ObjectiveMethod::POLSBY    ||
+        if (om == ObjectiveMethod::HULL_A    || om == ObjectiveMethod::HULL_P    ||
             om == ObjectiveMethod::INERTIA_A || om == ObjectiveMethod::INERTIA_P ||
-            om == ObjectiveMethod::ROHRBACH) {
+            om == ObjectiveMethod::ROHRBACH  || om == ObjectiveMethod::POLSBY) {
           delta = - (ir->obj(om, eb, ib) - curr_obj + er->obj(om, ib, eb) - er->obj(om));
         } else {
           delta = + er->dist(ib->x, ib->y, rt) + ir->dist(eb->x, eb->y, rt)  // mod distances 
@@ -3277,7 +3276,7 @@ namespace Cluscious {
       update_best_solutions(omethod, tol * 2, verbose);
       if (conv_iter && iterations_since_improvment > conv_iter) {
         cout << "Iteration " << i << "; " << conv_iter << " since improvement." << endl;
-        cout << "Best solution now " << best_solution_val << ".  Returning...." << endl;
+        cout << "Best solution now " << best_solution_val/nregions << ".  Returning...." << endl;
         return true;
       }
     }
@@ -3304,7 +3303,7 @@ namespace Cluscious {
       best_solution = cell_region_map();
 
       if (verbose) {
-        if (best_tolerance_val < tol) cout << "Best solution now :: " << best_solution_val << "  (tol=" << best_tolerance_val << ")" << endl;
+        if (best_tolerance_val < tol) cout << "Best solution now :: " << best_solution_val/nregions << "  (tol=" << best_tolerance_val << ")" << endl;
         else cout << "Tolerance now :: " << pop_max_dtol << endl;
       }
 

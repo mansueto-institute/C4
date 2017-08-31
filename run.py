@@ -165,7 +165,7 @@ def main(state, seed, method, seats, ncycles, split_restart, power_restart, nite
 
         if split_restart:
           print("rebooting")
-          u.split_restart(seed, pycl_methods[method])
+          u.split_restart(seed+c, pycl_methods[method])
     else: write_cycle = write
 
     for i in range(0, nloops+1):
@@ -203,11 +203,11 @@ def main(state, seed, method, seats, ncycles, split_restart, power_restart, nite
     save_json("res/json/{}.json".format(write_cycle.replace("/", "_")),
               state, pycl_short[method], write_cycle, gdf, crm = u.cell_region_map(),
               metrics = {pycl_short[k] : u.get_objectives(v) for k, v in pycl_methods.items()},
-              tracts = False)
+              tracts = not blocks)
 
     save_geojson(gdf, "res/{}/final.geojson".format(write_cycle), u.cell_region_map(), state,
                  metrics = {pycl_short[k] : u.get_objectives(v) for k, v in pycl_methods.items()},
-                 tracts = False)
+                 tracts = not blocks)
 
 
 if __name__ == "__main__":

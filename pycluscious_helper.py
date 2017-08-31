@@ -489,7 +489,7 @@ def save_json(filename, usps, method, uid, gdf, crm, metrics, tracts = True):
 
       dist = {"ID" : int(ri), "Populations" : {}, "Elections" : {}, "Spatial" : {}}
 
-      if race:
+      if race is not None:
         dist["Populations"]["Total"] = int(row["Population"])
         dist["Populations"]["Black"] = int(row["black"])
         dist["Populations"]["Hispanic"] = int(row["hispanic"])
