@@ -557,7 +557,6 @@ namespace Cluscious {
 
     add_cell_int_ext_neighbors(c);
 
-    // if (has_topo && node_ring.size()) divert_ring_at_cell(c, true);
     if (has_topo && node_ring.size() && ncells > 2) make_ring();
 
     Ia = inertia_parallel_axis(Ia, xctr,  yctr,  area, c->x, c->y, c->area);
@@ -673,7 +672,6 @@ namespace Cluscious {
 
     remove_cell_int_ext_neighbors(c);
 
-    // if (has_topo && node_ring.size()) divert_ring_at_cell(c, false);
     if (has_topo && node_ring.size() && ncells > 2) make_ring();
 
     Ia = inertia_parallel_axis(Ia, xctr,  yctr,  area, c->x, c->y, -c->area);
@@ -962,209 +960,6 @@ namespace Cluscious {
 
   }
 
-  void Region::divert_ring_at_cell(Cell* c, bool CW = true) {
-
-    DEBUG_ME; cout << "\n >>>>>>>>>>>>>>>>> \nREGION=" << id << ", " << (CW ? "adding" : "removing") << " cell" << c->id << endl;
-
-    int number_on_cell = 0;
-    int insertion_point = 0;
-    Node *snip_a = 0, *snip_b = 0;
-
-    if (!c->is_split && !c->split_neighbor) {
-
-      int ni = 0; int node_ring_size = node_ring.size();
-      if (c->nodes.find(node_ring.back()) != c->nodes.end()) {
-        ni = node_ring_size - c->nodes.size() - 1;
-      }
-
-      // cout << "I'm on cell " << c->id << ", which is not split." << endl;
-
-      // not wasteful, since the second expression evaluates, 
-      int loop_safety = 0;
-      while ((!snip_b || c->nodes.find(node_ring[ni]) != c->nodes.end()) && loop_safety < 2) {
-
-        // If snip_b is defined, we already tested, so don't retest...
-        if (snip_b || c->nodes.find(node_ring[ni]) != c->nodes.end()) { 
-
-          // Otherwise, this node IS on the cell.
-          number_on_cell++;
-          cout << "node=" << node_ring[ni]->id << endl;
-          if (!snip_a) {
-            snip_a = node_ring[ni];
-            insertion_point = ni;
-          }
-
-          snip_b = node_ring[ni];
-        }
-
-        ni = (ni+1) % node_ring_size;
-        if (!ni) loop_safety++;
-      }
-
-
-    } else {
-
-      // cout << "We've got cell " << c->id << ", which is unconnected!" << endl;
-
-      bool last, curr;
-      int nr_size = node_ring.size();
-
-      last = (c->nodes.find(node_ring.back()) != c->nodes.end());
-      // cout << "last at fwd start=" << last << endl;
-      for (int ni = 0; ni < nr_size; ni++) {
-        curr = (c->nodes.find(node_ring[ni]) != c->nodes.end());
-        if (curr && !last) {
-          snip_a = node_ring[ni];
-          insertion_point = ni;
-          break;
-        } 
-        last = curr;
-      }
-      
-      last = (c->nodes.find(node_ring.front()) != c->nodes.end());
-      // cout << "last at bkwd start=" << last << endl;
-      for (int ni = nr_size-1; ni >= 0; ni--) {
-        curr = (c->nodes.find(node_ring[ni]) != c->nodes.end());
-        if (curr && !last) {
-          snip_b = node_ring[ni];
-          number_on_cell = ni - insertion_point + 1;
-          if (number_on_cell < 0) number_on_cell += nr_size;
-          break;
-        } 
-        last = curr;
-      }
-
-      // cout << "region=" << id << "  cell id=" << c->id << "  number=" << number_on_cell << "  insertion_point=" << insertion_point << "  snip_a=" << snip_a->id << "  snip_b=" << snip_b->id << endl;
-    }
-
-    assert(snip_a && snip_b);
-
-
-    Edge* start_edge = &c->edges[0];
-    for (auto& e : c->edges) {
-      if (( CW && e.na == snip_a) ||
-          (!CW && e.nb == snip_a)) {
-        start_edge = &e;
-        break;
-      }
-    }
-
-    Cell* this_cell = c;
-    Edge* this_edge = start_edge;
-    Node* node = CW ? start_edge->nb : start_edge->na; // if removing do node a.
-
-    std::vector<Node*> cell_path;
-
-    // Looping around nodes of of the polygon.
-    size_t loop_safe = 0; // because I lack confidence, for the time being....
-    Cell* next_cell = 0; Edge* next_edge = 0;
-    cout << "cell id=" << c->id << "  snipA=" << snip_a->id << "  snipB=" << snip_b->id
-         << "  number_on_cell=" << number_on_cell
-         << "  edge=" << this_edge->id 
-         << "  (a=" << this_edge->na_id << ", b=" << this_edge->nb_id << ")" << endl;
-    while (node != snip_b && loop_safe < c->nodes.size()) {
-
-      cout << "this_cell=" << this_cell->id 
-           << "  this node=" << node->id << "(x,y)=(" << node->x << "," << node->y << ")"
-           << "  this_edge=" << this_edge->id 
-           << "  (a=" << this_edge->na_id << ", b=" << this_edge->nb_id << ")" << endl;
-
-      loop_safe++; 
-      DEBUG_ME;
-
-      // If it's a trijunction, add it.
-      if (node->size() > 2) cell_path.push_back(node);
-
-      // Loop around CW, until the next edge on the border.
-      // If removing, go CCW (false).  But also be careful about the region ID.
-      this_cell->next_edge_in_region(node, this_edge->id, next_cell, next_edge, CW, id);
-
-      // node = CW ? next_edge->nb : next_edge->na; // that will be our next node
-      node = next_edge->nb;  // that will be our next node
-
-      this_edge = next_edge; // edge, and
-      this_cell = next_cell; // We have to do cells, because the tracts are not necessarily contiguous.
-    }
-
-    cout << "node ring BEFORE :: ";
-    for (auto n : node_ring) {
-      if (n == snip_a || n == snip_b) cout << "**";
-      cout << n->id;
-      if (n == snip_a || n == snip_b) cout << "**";
-      cout << " ";
-    }
-    cout << endl;
-
-    cout << "snip_a=" << snip_a->id << "(" << snip_a << ")" << " snip_b=" << snip_b->id << "(" << snip_b << ")" << "  number_on_cell=" << number_on_cell << " cell_path=" << cell_path.size() << endl;
-    if (snip_a == snip_b && number_on_cell > 1) {
-      cell_path.clear();
-      number_on_cell++;
-    }
-
-    int removed = 0;
-    if (number_on_cell > 2) {
-
-      if (insertion_point+number_on_cell-1 <= (int) node_ring.size()) {
-
-        node_ring.erase(node_ring.begin()+insertion_point+1,
-                        node_ring.begin()+insertion_point+number_on_cell-1);
-        removed = number_on_cell - 2;
-
-      } else {
-
-        int unremoved = (insertion_point+number_on_cell-1) - node_ring.size();
-
-        DEBUG_ME; cout << "insertion_point=" << insertion_point << "  number_on_cell=" << number_on_cell << "  unremoved=" << unremoved << "  and node_ring.size()=" << node_ring.size() << endl;
-        if (insertion_point+1 < (int) node_ring.size()) 
-          node_ring.erase(node_ring.begin()+insertion_point+1, node_ring.end());
-        node_ring.erase(node_ring.begin(), node_ring.begin()+unremoved);
-        insertion_point = node_ring.size()-1; // insert at the end.
-        cout << "new insertion point=" << insertion_point << endl;
-      }
-    }
-
-    cout << "node ring AFTER removing " << removed << " :: ";
-    for (auto n : node_ring) {
-      if (n == snip_a || n == snip_b) cout << "**";
-      cout << n->id;
-      if (n == snip_a || n == snip_b) cout << "**";
-      cout << " ";
-    }
-    cout << endl;
-
-    // If there was originally just a corner on this cell,
-    // we need to add another copy of this node to return to.
-    DEBUG_ME;  cout << "node_ring.size()=" << node_ring.size() << ", cell_path.size()=" << cell_path.size() << endl;
-    if (number_on_cell == 1 && cell_path.size()) cell_path.push_back(node_ring[insertion_point]);
-
-    DEBUG_ME; cout << "about to insert at " << insertion_point+1 << " on node_ring size=" << node_ring.size()
-                   << " adding " << cell_path.size() << " nodes." << endl;
-    node_ring.insert(node_ring.begin()+insertion_point+1, cell_path.begin(), cell_path.end());
-    DEBUG_ME;
-
-    cout << "Adding to region " << id << " cell=" << c->id << " with snipA=" << snip_a->id << " with snipB=" << snip_b->id
-         << "\n  > cell_path size=" << cell_path.size() << ", elements :: ";
-    for (auto n : cell_path) cout << n->id << " ";
-    cout << endl;
-
-    cout << "node ring AFTER insertion :: ";
-    for (auto n : node_ring) {
-      if (n == snip_a || n == snip_b) cout << "**";
-      cout << n->id;
-      if (n == snip_a || n == snip_b) cout << "**";
-      cout << " ";
-    }
-    cout << endl;
-
-    Node* last = node_ring.back();
-    for (auto n : node_ring) {
-      assert(last != n);
-      last = n;
-    }
-
-    return;
-
-  }
 
   float Region::update_scc(Cell* add = 0, Cell* sub = 0, bool UPDATE = false) { 
 
@@ -1573,14 +1368,6 @@ namespace Cluscious {
         } else cout << "Huzzah!!!" << endl;
 
         c->region = rem;
-
-        // cout << "Running divert for regions " << rid << " and " << rem << endl;
-        // regions[rem]->divert_ring_at_cell(c, false);
-        // regions[rid]->divert_ring_at_cell(c, true);
-
-        // cout << "running make_ring for regions " << rid << " and " << rem << endl;
-        // regions[rid]->make_ring();
-        // regions[rem]->make_ring();
 
         regions[rid]->remove_cell(c);
         regions[rem]->add_cell(c);
