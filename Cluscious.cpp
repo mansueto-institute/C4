@@ -2862,10 +2862,11 @@ namespace Cluscious {
 
     std::unordered_set<Cell*> bak = strand;
 
-    int rid = (*strand.begin())->region;
     int level = 0;
     int itercount = 0;
     while (strand.size()) {
+
+      int rid = (*strand.begin())->region;
 
       bool removed = false;
       for (auto c : strand) {
