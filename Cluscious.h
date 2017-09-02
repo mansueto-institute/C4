@@ -189,6 +189,9 @@ namespace Cluscious {
       void add_cell_int_ext_neighbors(Cell* c);
       void remove_cell_int_ext_neighbors(Cell* c);
 
+      bool contiguous();
+      bool contiguous(std::vector<std::unordered_set<Cell*> > &graphs);
+
       double obj(ObjectiveMethod omethod, Cell* add = 0, Cell* sub = 0, bool verbose = false);
 
       double obj_distance   (Cell* add, Cell* sub, float xx, float yy);
@@ -292,7 +295,7 @@ namespace Cluscious {
 
       void trim_graph(float max_frac = 0.9);
       int  merge_strands(Cell* c, float max_frac = 0.9);
-
+      void force_contiguity(int rid, bool verbose = false);
 
       bool loaded_topo;
       bgraph dijkstra_graph;
@@ -309,7 +312,7 @@ namespace Cluscious {
       void assign_to_zero();
       void power_restart(int seed, int niter, float tol, int = false);
       void split_restart(int seed, ObjectiveMethod om);
-      bool split_region(int r = 0, float a = -1, bool connect = true);
+      bool split_region(int r = 0, float a = -1, bool connect = true, float margin = 0.1);
       bool merge_regions(int rA, int rB);
       void split_line_init();
       void rand_init(int s);
@@ -347,7 +350,8 @@ namespace Cluscious {
       std::deque<Cell*>    tabu;
       void set_tabu(Cell* c) { tabu.push_front(c); while (tabu.size() > TABU_LENGTH) tabu.pop_back(); }
       bool is_tabu(Cell* c)  { return TABU_LENGTH && find(tabu.begin(), tabu.end(), c) != tabu.end(); }
-      bool is_tabu_strand(std::unordered_set<Cell*> s) { for (auto c : s) if (is_tabu(c)) return true; return false;}
+      bool is_tabu_strand(std::unordered_set<Cell*> &s) { for (auto c : s) if (is_tabu(c)) return true; return false;}
+      bool is_uninit_strand(std::unordered_set<Cell*> &s);
 
       size_t DESTRAND_MIN, DESTRAND_MAX;
       bool transfer_strand(std::unordered_set<Cell*>& strand);

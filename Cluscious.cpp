@@ -711,7 +711,17 @@ namespace Cluscious {
   void Region::remove_cell_int_ext_neighbors(Cell* c) {
 
     int_borders.erase(c);
-    ext_borders.insert(c);
+
+    // This would be unnecessary if I ALWAYS worked one cell at a time:
+    // a cell removed would necessarily be in the external border.
+    // But in the case of e.g. splits, there can be "temporarily non-contiguous"
+    // graphs.  In that case, if the cell is not connected to the main subgraph,
+    // it is not in the ext border!!  Careful!!
+    for (auto n : c->nm) {
+      if (n.first->region == id) {
+        ext_borders.insert(c); break;
+      }
+    }
 
     if (c->is_univ_edge) sumw_border -= c->edge_perim;
 
@@ -859,9 +869,9 @@ namespace Cluscious {
       this_edge_idx = curr_cell->get_ext_edge_idx();
     }
     if (this_edge_idx < 0) {
-      if (ncells > 5) 
+      if (ncells > 10) 
         cout << "WARNING :: Region " << id << " found no good start on get_node_ring(), "
-             << " with ncells=" << ncells << ".   Returning a random cell." << endl;
+             << " with ncells=" << ncells << ".   Using a random cell." << endl;
 
       for (auto e : (*cells.begin())->edges) ring.push_back(e.na);
       return;
@@ -1137,6 +1147,109 @@ namespace Cluscious {
     if (vec) return std::make_pair(coeff(0, 0), coeff(1, 0));
     else     return std::make_pair(latent(0),   latent(1));
 
+  }
+
+  void Universe::force_contiguity(int rid, bool verbose) {
+
+    std::vector<std::unordered_set<Cell*> > graphs;
+    if (regions[rid]->contiguous(graphs)) return;
+
+    std::sort(graphs.rbegin(), graphs.rend(), cellp_set_len_compare); 
+
+    if (verbose) {
+      cout << "Forcing contiguity on region " << rid << ", sizes :: ";
+      for (auto g = graphs.begin()+1; g != graphs.end(); g++) cout << g->size() << " ";
+      cout << ":: and cells :: ";
+    }
+
+    bool removed = true;
+    while (removed) {
+
+      removed = false;
+      for (auto g = graphs.begin()+1; g != graphs.end(); g++) {
+
+        for (auto c = g->begin(); c != g->end(); c++) {
+
+          std::unordered_set<int> nei_reg = (*c)->neighbor_regions(true);
+          if (nei_reg.size()) { 
+
+            if (verbose) cout << "c" << (*c)->id << ", " << rid << "->r" << *nei_reg.begin() << " | ";
+            regions[rid]->remove_cell(*c); 
+            regions[*nei_reg.begin()]->add_cell(*c);
+
+            g->erase(*c);
+
+            removed = true;
+            break;
+          }
+        }
+
+        if (removed) break;
+      }
+    } // none removed, we're done.
+    if (verbose) cout << endl;
+
+  }
+
+  bool Region::contiguous() {
+
+    std::vector<std::unordered_set<Cell*> > graphs;
+    contiguous(graphs);
+    if (graphs.size() == 1) return true;
+
+    // std::sort(graphs.rbegin(), graphs.rend(), cellp_set_len_compare); 
+    // cout << "WARNING ::: Region " << id << " has an extra graph with cells :: ";
+    // for (auto c : graphs.back()) cout << c->id << " ";
+    // cout << endl;
+
+    return false;
+  }
+
+  bool Region::contiguous(std::vector<std::unordered_set<Cell*> > &graphs) {
+
+    for (auto c : cells) {
+
+      // First make the local star graph.
+      std::unordered_set<Cell*> lone_star;
+      lone_star.insert(c);
+      for (auto n : c->nm) {
+        if (n.first->region == id)
+          lone_star.insert(n.first);
+      }
+
+      // Then get a vector of all the existing
+      // graphs that it's connected to:
+      // if any element in lone star is in an 
+      // existing graph, just mark it.
+      std::vector<int> gidx;
+      for (size_t gi = 0; gi < graphs.size(); gi++) {
+        for (auto cls : lone_star) {
+          if (graphs[gi].find(cls) != graphs[gi].end()) {
+              gidx.push_back(gi);
+              break;
+          }
+        }
+      } // gid should now hold a list of overlapping graphs
+
+      // If it has (yet) no neighbors, add it on its own.
+      if (!gidx.size()) { 
+        graphs.push_back(lone_star);
+
+      // Otherwise, add it to the first,
+      // and add _others_ on to that one.
+      } else {
+        graphs[gidx[0]].insert(lone_star.begin(), lone_star.end());
+
+        // backwards, to keep removals consistent.
+        for (auto gi : boost::adaptors::reverse(gidx)) {
+          if (gi == gidx[0]) continue;
+          graphs[gidx[0]].insert(graphs[gi].begin(), graphs[gi].end());
+          graphs.erase(graphs.begin() + gi);
+        }
+      }
+    }
+
+    return (graphs.size() == 1);
   }
 
 
@@ -1741,6 +1854,12 @@ namespace Cluscious {
         r->update_scc(0, 0, true);
       }
     }
+
+    for (auto rit : regions) {
+      if (!rit->contiguous()) {
+        cout << "WARNING ::: AFTER load_partition, region " << rit->id << " is not contiguous!!" << endl;
+      }
+    }
   }
 
   // Would be better to reassign arbitrary...
@@ -1802,7 +1921,14 @@ namespace Cluscious {
     std::sort(obj_reg.begin(), obj_reg.end(), compare_second<int, float>);
     // for (auto sr : obj_reg) cout << "sr=" << sr.first << " " << sr.second << "  obj" << int(om) << endl;
 
-    for (auto sr : obj_reg) if (split_region(sr.first)) break;
+    for (auto sr : obj_reg)
+      if (split_region(sr.first, -1, true, 1)) break;
+
+    for (auto rit : regions) {
+      if (!rit->contiguous()) {
+        DEBUG_ME; cout << "WARNING ::: AFTER split, region " << rit->id << " is not contiguous!!" << endl;
+      }
+    }
 
     mersenne.seed(seed);
     int mra = mersenne() % regions.size(); // random region
@@ -1812,18 +1938,30 @@ namespace Cluscious {
     int mrb = (*cit)->region; // random neighbor.
 
     merge_regions(mra, mrb);
+    for (auto rit : regions) {
+      if (!rit->contiguous()) {
+        DEBUG_ME; cout << "WARNING ::: AFTER split/restart, region " << rit->id << " is not contiguous!!" << endl;
+      }
+    }
 
     int temp_tabu = TABU_LENGTH;
     TABU_LENGTH = 100;
     while (destrand(3, 100)) continue;
     TABU_LENGTH = temp_tabu;
 
+    // for (auto rit : regions) force_contiguity(rit->id);
+
+    for (auto rit : regions) {
+      if (!rit->contiguous()) {
+        DEBUG_ME; cout << "WARNING ::: AFTER split/restart/destrand, region " << rit->id << " is not contiguous!!" << endl;
+      } 
+    }
 
     assert(regions.size() == nregions);
 
   }
 
-  bool Universe::split_region(int rA, float angle, bool connect) {
+  bool Universe::split_region(int rA, float angle, bool connect, float margin) {
 
     int rB = -1;
     if (rA < 0 || rA >= int(regions.size())) {
@@ -1834,13 +1972,14 @@ namespace Cluscious {
     cout << "Splitting region " << rA << endl;
 
     int seats = lrint(regions[rA]->pop / target);
+    if (!seats) seats = 1;
 
     float sA = seats/2;
     float sB = seats - sA;
 
     // For splitting qua re-initialization, 
     // we want to allow fractional populations.
-    if (seats < 2) sA = sB = 0.5; 
+    if (seats == 1) sA = sB = 0.5; 
 
     int nB = 1.*regions[rA]->pop * sB / seats;
 
@@ -1882,14 +2021,15 @@ namespace Cluscious {
         float b_dot_d = nvec.first * ib->x + nvec.second * ib->y;
         if (b_dot_d < max_b_dot_d) continue;
 
-        std::unordered_set<Cell*> strands;
-        if (connect) {
-          int nsets = ib->neighbor_strands(strands, 25, false);
-          if (nsets != 1 && !strands.size()) continue;
+        std::unordered_set<Cell*> strand;
+        if (0 && connect) {
+          int nsets = ib->neighbor_strands(strand, 25, false);
+          if ((nsets != 1 && !strand.size()) ||
+              is_uninit_strand(strand)) continue;
         }
 
         opt_cell = ib;
-        opt_strands = strands;
+        opt_strands = strand;
         max_b_dot_d = b_dot_d;
       }
 
@@ -1907,13 +2047,32 @@ namespace Cluscious {
 
     }
 
-    if (fabs(regions[rA]->pop/sA - regions[rB]->pop/sB) > 0.10 * target) {
+    if (connect) force_contiguity(rA);
+
+    float local_target = (regions[rA]->pop + regions[rB]->pop) / (sA + sB);
+    if (fabs(regions[rA]->pop/sA - regions[rB]->pop/sB) > margin * local_target) {
       cout << "Warning :: remerging due to imbalanced populations: "
-           << regions[rA]->pop/target/sA << " and " << regions[rB]->pop/sB/target
+           << regions[rA]->pop/local_target/sA << " and " << regions[rB]->pop/local_target/sB
            << endl;
       merge_regions(rA, rB);
       return false;
     }
+
+    // std::unordered_set<Cell*> not_found;
+    // for (auto eb : regions[rA]->ext_borders) {
+    //   bool found = false;
+    //   for (auto n : eb->nm) {
+    //     if (n.first->region == rA) {
+    //       found = true;
+    //       break;
+    //     }
+    //   }
+    //   if (!found) not_found.insert(eb);
+    // }
+    // for (auto eb : not_found) {
+    //   cout << "EB NOT FOUND " << eb->id << endl;
+    //   regions[rA]->ext_borders.erase(eb);
+    // }
 
     return true;
 
@@ -2701,10 +2860,9 @@ namespace Cluscious {
 
   bool Universe::transfer_strand(std::unordered_set<Cell*>& strand) {
 
-    // if (strand.size()) cout << "Removing strand of size " << strand.size() << " consisting of :: ";
-    // for (auto s : strand) cout << s->id << " ";
-    // if (strand.size()) cout << endl;
+    std::unordered_set<Cell*> bak = strand;
 
+    int rid = (*strand.begin())->region;
     int level = 0;
     int itercount = 0;
     while (strand.size()) {
@@ -2716,26 +2874,50 @@ namespace Cluscious {
 
         // Move in an order that preserves contiguity.
         std::unordered_set<int> nei_reg = c->neighbor_regions(level);
-        if (nei_reg.size()) { 
+        if (nei_reg.size()) {
+          if (level) cout << c->id << " " << c->region << "->" << *nei_reg.begin() << endl;
+
           regions[c->region]->remove_cell(c); 
           regions[*nei_reg.begin()]->add_cell(c);
           strand.erase(c);
           set_tabu(c);
           removed = true;
-          break;
         }
+        if (removed) break;
       }
 
       if (!removed) {
-        cout << "WARNING (" << itercount << ") :: strand not correctly removed from " << (*strand.begin())->region << " :: ";
+        cout << "WARNING (" << itercount << ") :: strand not correctly removed from " << (*strand.begin())->region 
+             << " at level :: " << level << endl;
         if (!level) {
+
+          if (bak.size()) cout << "Removing strand of size " << bak.size() << " consisting of :: ";
+          for (auto s : bak) cout << s->id << " (r" << s->region << ")  ";
+          if (bak.size()) cout << endl;
+    
           cout << "switching to queen contiguity." << endl;
+          cout << " we still have left " << endl;
+          for (auto c : strand) {
+            cout << "cell " << c->id << " (r" << c->region << ")  connected=" << c->neighbors_connected(level)
+                 << "  n neighbors regions=" << c->neighbor_regions(level).size();
+            cout << " ::";
+            for (auto nr : c->neighbor_regions(level)) cout << " " << nr;
+            cout << " :: ";
+            for (auto n : c->nm) cout << " " << n.first->id << "(" << n.first->region << ")  ";
+            cout << endl;
+          }
           level = 1;
         } else if (level == 1) {
           cout << "disregarding contiguity...  level 2" << endl;
+          cout << " we still have left " << endl;
+          for (auto c : strand) {
+            cout << c->id << "  connected=" << c->neighbors_connected(level) << "  regions=" << c->neighbor_regions(level).size() << "   ::  ";
+            for (auto n : c->nm) cout << " " << n.first->id << "(" << n.first->region << ")  ";
+            cout << endl;
+          }
           level = 2;
         } else {
-          cout << " we still have left " << endl;
+          cout << "Could not complete strand removal :: we still have left " << endl;
           for (auto c : strand) {
             cout << c->id << "  connected=" << c->neighbors_connected(level) << "  regions=" << c->neighbor_regions(level).size() << "   ::  ";
             for (auto n : c->nm) cout << " " << n.first->id << "(" << n.first->region << ")  ";
@@ -2746,10 +2928,23 @@ namespace Cluscious {
         }
       }
 
+      force_contiguity(rid, true);
+
       itercount++;
     }
 
     return true;
+  }
+
+  bool Universe::is_uninit_strand(std::unordered_set<Cell*> &strand) {
+
+    for (auto c : strand) {
+      if (c->region < 0) return true;
+      for (auto n : c->nm)
+        if (n.first->region < 0) return true;
+    }
+
+    return false;
   }
 
   int Universe::destrand(int min = 1, size_t max = 1e9) {
@@ -2770,15 +2965,8 @@ namespace Cluscious {
 
         b->neighbor_strands(strand, strand_max);
 
-        bool strand_is_tabu = false;
-        bool strand_is_uninit = false;
-        for (auto c : strand) {
-          if (is_tabu(c)) strand_is_tabu = true;
-          if (c->region < 0) strand_is_uninit = true;
-          for (auto n : c->nm)
-            if (n.first->region < 0) strand_is_uninit = true;
-        }
-        if (strand_is_tabu || strand_is_uninit) continue;
+        if (is_tabu_strand(strand))   continue;
+        if (is_uninit_strand(strand)) continue;
 
         if (strand.size() > opt_strand.size()) {
           opt_strand = strand;
@@ -2905,7 +3093,6 @@ namespace Cluscious {
     if (b_opt_c) {
       int rem_reg = b_opt_c->region;
 
-      // up to four cells....
       transfer_strand(opt_strands);
 
       if (verbose) cout << "Moving cell " << b_opt_c->id << " from region " << rem_reg << " to " << rit->id << endl;
@@ -2934,7 +3121,7 @@ namespace Cluscious {
      if (b->region >= 0) dbpop = regions[b->region]->pop / target - 1;
 
      float dp_ij = sign(dbpop - dpop) * pow(fabs(dpop - dbpop)/tol, ALPHA);
-     if (fabs(dp_ij) > 100) dp_ij = sign(dbpop - dpop) * 100;
+     if (fabs(dp_ij) > 1e6) dp_ij = sign(dbpop - dpop) * 1e6;
 
      // current r objective fn is constant across the set we're evaluating over
      // (everything in this region), so don't worry about subtracting off its current value
@@ -2956,15 +3143,17 @@ namespace Cluscious {
      if (b->region >= 0 && regions[b->region]->ncells == 1) return false;
      if (verbose) cout << "  >>  neighbor has enough cells!" << endl;
 
-     std::unordered_set<Cell*> strands;
+     std::unordered_set<Cell*> strand;
      if (b->region >= 0) {
        int max = (DESTRAND_MAX < regions[b->region]->ncells/2) ? DESTRAND_MAX : (regions[b->region]->ncells/2-1);
-       int nsets = b->neighbor_strands(strands, max, false);
-       if ((nsets != 1 && strands.size() < DESTRAND_MIN) || 
-           is_tabu_strand(strands)) {
+       int nsets = b->neighbor_strands(strand, max, false);
+       if ((nsets != 1 && strand.size() < DESTRAND_MIN) || 
+           is_tabu_strand(strand) ||
+           is_uninit_strand(strand)) {
          if (verbose) cout << "  !!! not connected :: nsets=" << nsets 
-           << "  strand size=" << strands.size() 
-             << "  strands tabu=" << is_tabu_strand(strands) << endl;
+             << "  strand size=" << strand.size() 
+             << "  strand tabu=" << is_tabu_strand(strand) 
+             << "  strand uninit=" << is_tabu_strand(strand) << endl;
          return false;
        }
 
@@ -2973,7 +3162,7 @@ namespace Cluscious {
 
      best_move = dO_ij;
      b_opt_c = b;
-     opt_strands = strands;
+     opt_strands = strand;
 
      return true;
 
@@ -2982,10 +3171,28 @@ namespace Cluscious {
 
   bool Universe::oiterate(ObjectiveMethod omethod, int niter = 1, float tol = 0.05, int conv_iter = 0, int seed = 0, int r = -1, int verbose = 0) {
 
+    for (auto rit : regions) {
+      if (!rit->contiguous()) {
+        DEBUG_ME; cerr << "WARNING :: before oiterating, region " << rit->id << " is not contiguous!!" << endl;
+      }
+    }
+
     if (r >= int(regions.size()))
       throw std::runtime_error(std::string("Cannot iterate over region -- there aren't that many!"));
 
     for (int i = 0; i < niter; i++) { // The number of iterations.
+
+      for (auto rit : regions) {
+        if (!rit->contiguous()) {
+          // this appears to be always the split region....
+          // but it is contiguous until deep in the cycle!!
+          cout << "WARNING :: A broke contiguity of region " << rit->id << " on iteration " << i << "!!" << endl;
+          force_contiguity(rit->id, verbose); 
+          return true;
+          if (!rit->contiguous()) cout << "Force failed!!!" << endl;
+          else cout << "Force succeeded." << endl;
+        }
+      }
 
       mersenne.seed(total_iterations + seed); // Different splits of loops etc. should be reproducible.
       total_iterations++;
@@ -2999,11 +3206,37 @@ namespace Cluscious {
         float cut = RANDOM ? 0 : -1;
         greedy(rit, omethod, tol, cut, RANDOM, r, verbose > 1);
 
+
+      }
+
+      for (auto rit : regions) {
+        if (!rit->contiguous()) {
+          // this appears to be always the split region....
+          // but it is contiguous until deep in the cycle!!
+          cout << "WARNING :: B broke contiguity of region " << rit->id << " on iteration " << i << "!!" << endl;
+          force_contiguity(rit->id, verbose);
+          return true;
+          if (!rit->contiguous()) cout << "Force failed!!!" << endl;
+          else cout << "Force succeeded." << endl;
+        }
       }
 
       destrand(DESTRAND_MIN, DESTRAND_MAX);
 
       update_best_solutions(omethod, tol * 2, verbose);
+
+      for (auto rit : regions) {
+        if (!rit->contiguous()) {
+          // this appears to be always the split region....
+          // but it is contiguous until deep in the cycle!!
+          cout << "WARNING :: C broke contiguity of region " << rit->id << " on iteration " << i << "!!" << endl;
+          force_contiguity(rit->id, verbose); 
+          return true;
+          if (!rit->contiguous()) cout << "Force failed!!!" << endl;
+          else cout << "Force succeeded." << endl;
+        }
+      }
+
       if (conv_iter && iterations_since_improvment > conv_iter) {
         cout << "Iteration " << i << "; " << conv_iter << " since improvement." << endl;
         cout << "Best solution now " << best_solution_val/nregions << ".  Returning...." << endl;
