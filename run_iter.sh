@@ -3,7 +3,7 @@
 s=$1
 x=$2
 
-cycles=10
+cycles=20
 max_iter=10000
 # shading="target district"
 shading="none"

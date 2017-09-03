@@ -163,9 +163,8 @@ def main(state, seed, method, seats, ncycles, split_restart, power_restart, nite
           npiter = int(sinit[1]) if len(init) > 1 else 10000
           u.power_restart(seed + c * 1000, npiter, tol, verbose)
 
-        if split_restart:
-          print("rebooting")
-          u.split_restart(seed+c, pycl_methods[method])
+        if split_restart: u.split_restart(seed+c, pycl_methods[method])
+
     else: write_cycle = write
 
     for i in range(0, nloops+1):

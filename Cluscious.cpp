@@ -1889,8 +1889,6 @@ namespace Cluscious {
     delete regions.back();
     regions.pop_back();
 
-    cout << "Just merged regions, " << rA << " and " << rB << endl;
-
     return true;
 
   }
@@ -1921,13 +1919,10 @@ namespace Cluscious {
     std::sort(obj_reg.begin(), obj_reg.end(), compare_second<int, float>);
     // for (auto sr : obj_reg) cout << "sr=" << sr.first << " " << sr.second << "  obj" << int(om) << endl;
 
-    for (auto sr : obj_reg)
+    int split_reg = -1;
+    for (auto sr : obj_reg) {
+      split_reg = sr.first;
       if (split_region(sr.first, -1, true, 1)) break;
-
-    for (auto rit : regions) {
-      if (!rit->contiguous()) {
-        DEBUG_ME; cout << "WARNING ::: AFTER split, region " << rit->id << " is not contiguous!!" << endl;
-      }
     }
 
     mersenne.seed(seed);
@@ -1938,24 +1933,13 @@ namespace Cluscious {
     int mrb = (*cit)->region; // random neighbor.
 
     merge_regions(mra, mrb);
-    for (auto rit : regions) {
-      if (!rit->contiguous()) {
-        DEBUG_ME; cout << "WARNING ::: AFTER split/restart, region " << rit->id << " is not contiguous!!" << endl;
-      }
-    }
 
     int temp_tabu = TABU_LENGTH;
     TABU_LENGTH = 100;
     while (destrand(3, 100)) continue;
     TABU_LENGTH = temp_tabu;
-
-    // for (auto rit : regions) force_contiguity(rit->id);
-
-    for (auto rit : regions) {
-      if (!rit->contiguous()) {
-        DEBUG_ME; cout << "WARNING ::: AFTER split/restart/destrand, region " << rit->id << " is not contiguous!!" << endl;
-      } 
-    }
+    
+    cout << "Rebooting :: split region " << split_reg << " and merged " << mra << " with " << mrb << "." << endl;
 
     assert(regions.size() == nregions);
 
@@ -1968,8 +1952,6 @@ namespace Cluscious {
       cout << "Region " << rA << " not available to split!" << endl;
       return false;
     }
-
-    cout << "Splitting region " << rA << endl;
 
     int seats = lrint(regions[rA]->pop / target);
     if (!seats) seats = 1;
@@ -2057,22 +2039,6 @@ namespace Cluscious {
       merge_regions(rA, rB);
       return false;
     }
-
-    // std::unordered_set<Cell*> not_found;
-    // for (auto eb : regions[rA]->ext_borders) {
-    //   bool found = false;
-    //   for (auto n : eb->nm) {
-    //     if (n.first->region == rA) {
-    //       found = true;
-    //       break;
-    //     }
-    //   }
-    //   if (!found) not_found.insert(eb);
-    // }
-    // for (auto eb : not_found) {
-    //   cout << "EB NOT FOUND " << eb->id << endl;
-    //   regions[rA]->ext_borders.erase(eb);
-    // }
 
     return true;
 
@@ -2864,9 +2830,9 @@ namespace Cluscious {
 
     int level = 0;
     int itercount = 0;
-    while (strand.size()) {
+    int rid = strand.size() ? (*strand.begin())->region : -1;
 
-      int rid = (*strand.begin())->region;
+    while (strand.size()) {
 
       bool removed = false;
       for (auto c : strand) {
@@ -2876,7 +2842,7 @@ namespace Cluscious {
         // Move in an order that preserves contiguity.
         std::unordered_set<int> nei_reg = c->neighbor_regions(level);
         if (nei_reg.size()) {
-          if (level) cout << c->id << " " << c->region << "->" << *nei_reg.begin() << endl;
+          // if (level) cout << c->id << " " << c->region << "->" << *nei_reg.begin() << endl;
 
           regions[c->region]->remove_cell(c); 
           regions[*nei_reg.begin()]->add_cell(c);
@@ -2888,34 +2854,32 @@ namespace Cluscious {
       }
 
       if (!removed) {
-        cout << "WARNING (" << itercount << ") :: strand not correctly removed from " << (*strand.begin())->region 
-             << " at level :: " << level << endl;
         if (!level) {
 
-          if (bak.size()) cout << "Removing strand of size " << bak.size() << " consisting of :: ";
-          for (auto s : bak) cout << s->id << " (r" << s->region << ")  ";
-          if (bak.size()) cout << endl;
+          // if (bak.size()) cout << "Removing strand of size " << bak.size() << " consisting of :: ";
+          // for (auto s : bak) cout << s->id << " (r" << s->region << ")  ";
+          // if (bak.size()) cout << endl;
     
-          cout << "switching to queen contiguity." << endl;
-          cout << " we still have left " << endl;
-          for (auto c : strand) {
-            cout << "cell " << c->id << " (r" << c->region << ")  connected=" << c->neighbors_connected(level)
-                 << "  n neighbors regions=" << c->neighbor_regions(level).size();
-            cout << " ::";
-            for (auto nr : c->neighbor_regions(level)) cout << " " << nr;
-            cout << " :: ";
-            for (auto n : c->nm) cout << " " << n.first->id << "(" << n.first->region << ")  ";
-            cout << endl;
-          }
+          // cout << "switching to queen contiguity." << endl;
+          // cout << " we still have left " << endl;
+          // for (auto c : strand) {
+          //   cout << "cell " << c->id << " (r" << c->region << ")  connected=" << c->neighbors_connected(level)
+          //        << "  n neighbors regions=" << c->neighbor_regions(level).size();
+          //   cout << " ::";
+          //   for (auto nr : c->neighbor_regions(level)) cout << " " << nr;
+          //   cout << " :: ";
+          //   for (auto n : c->nm) cout << " " << n.first->id << "(" << n.first->region << ")  ";
+          //   cout << endl;
+          // }
           level = 1;
         } else if (level == 1) {
-          cout << "disregarding contiguity...  level 2" << endl;
-          cout << " we still have left " << endl;
-          for (auto c : strand) {
-            cout << c->id << "  connected=" << c->neighbors_connected(level) << "  regions=" << c->neighbor_regions(level).size() << "   ::  ";
-            for (auto n : c->nm) cout << " " << n.first->id << "(" << n.first->region << ")  ";
-            cout << endl;
-          }
+          // cout << "disregarding contiguity...  level 2" << endl;
+          // cout << " we still have left " << endl;
+          // for (auto c : strand) {
+          //   cout << c->id << "  connected=" << c->neighbors_connected(level) << "  regions=" << c->neighbor_regions(level).size() << "   ::  ";
+          //   for (auto n : c->nm) cout << " " << n.first->id << "(" << n.first->region << ")  ";
+          //   cout << endl;
+          // }
           level = 2;
         } else {
           cout << "Could not complete strand removal :: we still have left " << endl;
@@ -2929,10 +2893,10 @@ namespace Cluscious {
         }
       }
 
-      force_contiguity(rid, true);
-
       itercount++;
     }
+
+    if (level) force_contiguity(rid, false);
 
     return true;
   }
@@ -3094,7 +3058,7 @@ namespace Cluscious {
     if (b_opt_c) {
       int rem_reg = b_opt_c->region;
 
-      transfer_strand(opt_strands);
+      if (!transfer_strand(opt_strands)) return false;
 
       if (verbose) cout << "Moving cell " << b_opt_c->id << " from region " << rem_reg << " to " << rit->id << endl;
       if (rem_reg >= 0) regions[rem_reg]->remove_cell(b_opt_c);
@@ -3183,22 +3147,18 @@ namespace Cluscious {
 
     for (int i = 0; i < niter; i++) { // The number of iterations.
 
-      for (auto rit : regions) {
-        if (!rit->contiguous()) {
-          // this appears to be always the split region....
-          // but it is contiguous until deep in the cycle!!
-          cout << "WARNING :: A broke contiguity of region " << rit->id << " on iteration " << i << "!!" << endl;
-          force_contiguity(rit->id, verbose); 
-          return true;
-          if (!rit->contiguous()) cout << "Force failed!!!" << endl;
-          else cout << "Force succeeded." << endl;
-        }
-      }
-
       mersenne.seed(total_iterations + seed); // Different splits of loops etc. should be reproducible.
       total_iterations++;
 
-      if (!(i%100) && verbose) cout << "iteration " << i << endl;
+      if (!(i%100) && verbose) {
+        cout << "iteration " << i << endl;
+        for (auto rit : regions) {
+          if (!rit->contiguous()) { // temporary:: still for consistency.
+            cout << "WARNING :: broke contiguity of region " << rit->id << " on iteration " << i << "!!" << endl;
+            return true;
+          }
+        }
+      }
 
       for (auto rit : regions) { // over all regions...
 
@@ -3207,36 +3167,11 @@ namespace Cluscious {
         float cut = RANDOM ? 0 : -1;
         greedy(rit, omethod, tol, cut, RANDOM, r, verbose > 1);
 
-
-      }
-
-      for (auto rit : regions) {
-        if (!rit->contiguous()) {
-          // this appears to be always the split region....
-          // but it is contiguous until deep in the cycle!!
-          cout << "WARNING :: B broke contiguity of region " << rit->id << " on iteration " << i << "!!" << endl;
-          force_contiguity(rit->id, verbose);
-          return true;
-          if (!rit->contiguous()) cout << "Force failed!!!" << endl;
-          else cout << "Force succeeded." << endl;
-        }
       }
 
       destrand(DESTRAND_MIN, DESTRAND_MAX);
 
       update_best_solutions(omethod, tol * 2, verbose);
-
-      for (auto rit : regions) {
-        if (!rit->contiguous()) {
-          // this appears to be always the split region....
-          // but it is contiguous until deep in the cycle!!
-          cout << "WARNING :: C broke contiguity of region " << rit->id << " on iteration " << i << "!!" << endl;
-          force_contiguity(rit->id, verbose); 
-          return true;
-          if (!rit->contiguous()) cout << "Force failed!!!" << endl;
-          else cout << "Force succeeded." << endl;
-        }
-      }
 
       if (conv_iter && iterations_since_improvment > conv_iter) {
         cout << "Iteration " << i << "; " << conv_iter << " since improvement." << endl;
