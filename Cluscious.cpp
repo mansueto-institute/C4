@@ -1913,6 +1913,8 @@ namespace Cluscious {
     best_solution_val = 0;
     iterations_since_improvment = 0;
 
+    grow_kmeans(); // in case it didn't cover the surface in the last round.
+
     std::vector<std::pair<int, float> > obj_reg;
     for (auto r : regions) 
       obj_reg.push_back(std::make_pair(r->id, r->obj(om)));
