@@ -2356,20 +2356,28 @@ namespace Cluscious {
     float hull_pop_mod = dist_pop_mod;
 
     bg_poly ch_poly_mod;
-    if (!add && !sub) ch_poly_mod = ch_poly;
-    else {
+    if ((!add || bgeo::within(add->pt, ch_poly)) && 
+        (!sub || bgeo::within(sub->pt, ch_poly))) { 
+      ch_poly_mod = ch_poly;
+    } else {
 
       // Just rebuild the point collection.
-      bg_mpt mpt_mod = mpt;
-      for (auto ib : int_borders)
-        if (ib != sub) bgeo::append(mpt_mod, ib->pt);
+      bg_mpt mpt_mod; // = mpt;
+      for (auto c : cells) {
+        if (c != sub) bgeo::append(mpt_mod, c->pt);
+        else {
+          for (auto n : c->nm) 
+            if (n.first->region == id)
+              bgeo::append(mpt_mod, n.first->pt);
+        }
+      }
       if (add) bgeo::append(mpt_mod, add->pt);
 
       bgeo::convex_hull(mpt_mod, ch_poly_mod);
     }
 
     if (add && !sub && bgeo::area(ch_poly_mod) < bgeo::area(ch_poly))
-      cout << "ADDED  SHOULD BE LARGER  :  mod=" << bgeo::area(ch_poly_mod) << " mod=" << bgeo::area(ch_poly) << endl;
+      cout << "ADDED  SHOULD BE LARGER  :  mod=" << bgeo::area(ch_poly_mod) << " nom=" << bgeo::area(ch_poly) << endl;
 
     if (sub && !add && bgeo::area(ch_poly_mod) > bgeo::area(ch_poly))
       cout << "SUBBED SHOULD BE SMALLER :  mod=" << bgeo::area(ch_poly_mod) << " nom=" << bgeo::area(ch_poly) << endl;
@@ -2392,23 +2400,6 @@ namespace Cluscious {
     // while (!nom_to_add.empty() || !mod_to_add.empty()) {
     while (!mod_to_add.empty()) {
       round++;
-
-      // Loop over the nominal borders, expanding them out.
-      // for (auto c : nom_to_add) {
-      //   if (bgeo::covered_by(c->pt, ch_poly)) {
-      //     hull_pop += c->pop; // add it to the hull population.
-      //     nom_added.insert(c);
-      //     for (auto nm : c->nm) { // look at new foreign neighbors.
-      //       if (nm.first->region != id && 
-      //           nom_added.find(nm.first) == nom_added.end()) {
-      //         nom_next.insert(nm.first);
-      //       }
-      //     }
-      //   }
-      // }
-      // nom_to_add.clear();
-      // nom_to_add.insert(nom_next.begin(), nom_next.end());
-      // nom_next.clear();
 
       // Loop over the nominal borders, expanding them out.
       for (auto c : mod_to_add) {
