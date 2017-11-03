@@ -65,6 +65,7 @@ cdef extern from "Cluscious.h" namespace "Cluscious" :
         vector[int] clipped_cells()
 
         vector[pair[float, float]] get_point_ring(int) 
+        vector[pair[float, float]] hull(int, int)
         pair[pair[float, float], float] get_circle_coords(int, RadiusType)
         void add_cell_to_region(int cid, int rid)
 
@@ -221,6 +222,9 @@ cdef class universe:
 
     def get_circle_coords(self, int rid, int rt_i):
         return self.c_univ.get_circle_coords(rid, RadiusType(rt_i))
+
+    def hull(self, rid, ib):
+        return self.c_univ.hull(rid, ib)
 
     def get_point_ring(self, rid):
         return self.c_univ.get_point_ring(rid)

@@ -27,7 +27,7 @@ import psycopg2
 # Needed to keep the centroids in the boundary.
 import shapely
 from shapely.wkt import loads, dumps
-from shapely.geometry import MultiPolygon, Polygon, Point, MultiLineString, LineString, LinearRing, asShape
+from shapely.geometry import MultiPolygon, MultiPoint, Polygon, Point, MultiLineString, LineString, LinearRing, asShape
 
 import os, glob
 
@@ -39,6 +39,8 @@ edge_file = "shapes/{}_edges"
 node_file = "shapes/{}_nodes"
 race_file = "demographic/{}_race.csv"
 vote_file = "demographic/{}_votes.csv"
+
+conx_file = "shapes/{}_conx.csv"
 
 def ens_dir(f, quiet = False):
   if not os.path.isdir(f):
@@ -409,8 +411,7 @@ def plot_map(gdf, filename, crm, hlt = None, shading = "district", figsize = 10,
 
 
     if circ is not None:
-      # circ["C"] = circ.index
-      circ.plot(color = "white", alpha = 0.2, ax = ax, linewidth = 1)
+      circ.plot(color = "white", alpha = 0.2, ax = ax, linewidth = 0.4)
 
     if point is not None:
       if "district" in shading:

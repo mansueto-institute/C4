@@ -132,6 +132,7 @@ namespace Cluscious {
       void adjacency_to_pointers(std::vector<Cell*>&);
       void node_ids_to_pointers(std::vector<Node*>&);
       void check_internal_connectedness();
+      void disconnect();
       void merge(Cell*);
 
       bool next_edge_in_region(Node* node, int start_edge_id, Cell*& next_cell, Edge*& next_edge, bool CW, int region_i);
@@ -249,6 +250,7 @@ namespace Cluscious {
       void divert_ring_at_cell(Cell* c, bool CW);
       std::pair<std::pair<float, float>, float> get_circle_coords(RadiusType rt);
       std::vector<std::pair<float, float> > get_point_ring();
+      std::vector<std::pair<float, float> > hull(bool IB);
       void get_node_ring(std::vector<Node*>& nr, Cell* cell = 0, int i = -1);
 
       std::pair<float, float> update_pca(Cell* add = 0, Cell* sub = 0, bool vec = false, bool UPDATE = false);
@@ -285,6 +287,7 @@ namespace Cluscious {
 
       std::pair<std::pair<float, float>, float> get_circle_coords(size_t rid, RadiusType rt);
       std::vector<std::pair<float, float> > get_point_ring(size_t rid);
+      std::vector<std::pair<float, float> > hull(size_t rid, int IB = 0);
       void add_cell_to_region(int cid, size_t rid);
 
       std::map<int, int> cell_region_map();
@@ -344,7 +347,7 @@ namespace Cluscious {
       std::mt19937 mersenne;
 
       int  TRADE;
-      bool trade(Region* a, Region* b, ObjectiveMethod om, float tol = 1);
+      bool trade(Region* a, Region* b, ObjectiveMethod om);
 
       size_t TABU_LENGTH;
       std::deque<Cell*>    tabu;

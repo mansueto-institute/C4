@@ -139,7 +139,7 @@ def w2line_graph(w, ctrs):
             segments.append([origin, ctrs[j]])
 
     lc_segs = LineCollection(segments)
-    lc_segs.set_linewidth(0.5)
+    lc_segs.set_linewidth(0.05)
     return lc_segs
 
 
@@ -255,7 +255,8 @@ def get_mod_rook(stfip, VISUALIZE = True):
     
         gdf = gpd.read_file("processed/st_%d_tract_pop.shp" % stfip)
 
-        ax = gdf.plot(facecolor = 'white', edgecolor = "0.7", linewidth = 0.4)
+        ax = gdf.plot(facecolor = "#00FFFF", alpha = 0.1,
+                      edgecolor = "#44FFFF", linewidth = 0.01, zorder = -1)
         ax.add_collection(w2line_graph(connected_w, np.stack([gdf.lon, gdf.lat], axis = 1)))
 
         plt.axis('equal')
@@ -267,7 +268,7 @@ def get_mod_rook(stfip, VISUALIZE = True):
 
         ax.figure.savefig("temp.pdf", bbox_inches='tight', pad_inches = 0)
 
-        os.system("pdfcrop temp.pdf img/weights/%d.pdf --margins '20 20 20 20'" % stfip)
+        os.system("pdfcrop temp.pdf img/weights/%d.pdf --margins '15 15 15 15'" % stfip)
 
 
 def run_clusterpy_districting(stfip, method = "maxp", VISUALIZE = True):
@@ -330,8 +331,8 @@ def run_clusterpy_districting(stfip, method = "maxp", VISUALIZE = True):
 
 
 
-for stfip in [53]: # [6, 15, 23, 42, 48]:
-    retrieve_and_merge_state(stfip)
+for stfip in [42]: # [6, 15, 23, 42, 48]:
+    # retrieve_and_merge_state(stfip)
     get_mod_rook(stfip, VISUALIZE = True)
     run_clusterpy_districting(stfip, method = "maxp", VISUALIZE = True)
         

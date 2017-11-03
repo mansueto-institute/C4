@@ -35,6 +35,17 @@ def load_data(state, method, seats = None, blocks = False):
   gdf["edge"] = pd.Series(edges) > 1e-3
   gdf["edge_perim"] = pd.Series(edges)
 
+  # Additional, explicit connections.
+  if os.path.exists(conx_file.format(state + tag)):
+    for line in open(conx_file.format(state + tag)):
+
+      line = line.split("#")[0].strip()
+      x1, x2 = (int(v) for v in line.split(","))
+      gdf.loc[x1, "ps_n"].append(x2)
+      gdf.loc[x1, "ps_w"].append(1e-6)
+      gdf.loc[x2, "ps_n"].append(x1)
+      gdf.loc[x2, "ps_w"].append(1e-6)
+
   ### Add the cells....
   for xi, c in gdf.iterrows():
   
@@ -88,6 +99,10 @@ def ring_df(u, ring = True):
 def circle_df(u, circle = False):
 
   if not circle: return None
+
+  if circle == "hull":
+
+    return gpd.GeoDataFrame(geometry=[Polygon(u.hull(d, True)) for d in range(u.nregions)])
 
   return gpd.GeoDataFrame(geometry=[Point(c[0][0], c[0][1]).buffer(c[1] if math.isfinite(c[1]) and c[1] > 0 else 1)
                                     for c in [u.get_circle_coords(r, pycl_circles[circle])

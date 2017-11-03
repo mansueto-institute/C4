@@ -491,25 +491,34 @@ namespace Cluscious {
 
   }
 
+  void Cell::disconnect() {
+
+    for (auto nei : nm) {
+      nei.first->wm.erase(id);
+
+      int nm_idx = 0;
+      for (auto nnei : nei.first->nm) {
+        if (nnei.first == this) {
+          // cout << "Disconnecting " << id << " from " << nei.first->id << endl;
+          nei.first->nm.erase(nei.first->nm.begin()+nm_idx);
+          break;
+        }
+        nm_idx++;
+      }
+    }
+
+  }
+
   void Cell::merge(Cell* m) {
 
     // Do we want to move the coords?  I think not.
     // x = (x * area + m->x * m->area)/(area + m->area);
     // y = (y * area + m->y * m->area)/(area + m->area);
+    
+    m->disconnect();
 
     area += m->area;
     pop  += m->pop;
-
-    wm.erase(m->id);
-
-    int nm_idx = 0;
-    for (auto nei : nm) {
-      if (nei.first == m) {
-        nm.erase(nm.begin()+nm_idx);
-        break;
-      }
-      nm_idx++;
-    }
 
     for (auto ei : m->enclaves_and_islands)
       enclaves_and_islands.push_back(ei);
@@ -659,6 +668,28 @@ namespace Cluscious {
         }
       }
     }
+
+
+    // Sanity check.
+    uint count_ib = 0;
+    for (auto c : cells) {
+
+      bool border = false;
+      for (auto n : c->nm)
+        if (n.first->region != id) border = true;
+
+      if (border || c->is_univ_edge) {
+        if (int_borders.find(c) == int_borders.end())
+          cout << c->id << " should be an internal border of " << id << " but is not!!" << endl;
+        count_ib++;
+      }
+    }
+    if (count_ib != int_borders.size()) {
+      cout << "Did not find all of the cells in the internal border -- " << count_ib << " v. " << int_borders.size() << endl;
+      for (auto ib : int_borders) cout << ib->id << " ";
+      cout << endl;
+    }
+
   }
 
   void Region::remove_cell(Cell *c, bool UPDATE_CTR = true) {
@@ -761,21 +792,21 @@ namespace Cluscious {
     }
 
     // Sanity check.
-    for (auto b : ext_borders) {
-      float total_border = 0;
-      float region_border = 0;
-      int nonzero_borders = 0;
-      for (auto bn : b->nm) {
-        total_border += bn.second;
-        if (bn.second > 0) nonzero_borders++;
-        if (bn.first->region == id)
-          region_border += bn.second;
-      }
-      // if (region_border == 0 && nonzero_borders > 1) {
-      //   cout << __FUNCTION__ << "::" << __LINE__ 
-      //        << " :: cell " << b->id << " is in the external border of Region " << id << " but has no non-zero connection to it." << endl;
-      // }
-    }
+    // for (auto b : ext_borders) {
+    //   float total_border = 0;
+    //   float region_border = 0;
+    //   int nonzero_borders = 0;
+    //   for (auto bn : b->nm) {
+    //     total_border += bn.second;
+    //     if (bn.second > 0) nonzero_borders++;
+    //     if (bn.first->region == id)
+    //       region_border += bn.second;
+    //   }
+    //   // if (region_border == 0 && nonzero_borders > 1) {
+    //   //   cout << __FUNCTION__ << "::" << __LINE__ 
+    //   //        << " :: cell " << b->id << " is in the external border of Region " << id << " but has no non-zero connection to it." << endl;
+    //   // }
+    // }
 
     // if (c->is_univ_edge) {
     //   float sum_border_check = 0;
@@ -785,8 +816,26 @@ namespace Cluscious {
     //       sum_border_check += n.second;
     //     }
     //   }
-
     //   cout << "sum_border_check=" << sum_border_check << " v. sumw_border=" << sumw_border << endl;
+    // }
+
+    // Sanity check.
+    // uint count_ib = 0;
+    // for (auto c : cells) {
+
+    //   bool border = false;
+    //   for (auto n : c->nm)
+    //     if (n.first->region != id) border = true;
+
+    //   if (border || c->is_univ_edge) {
+    //     if (int_borders.find(c) == int_borders.end())
+    //       cout << c->id << " should be an internal border of " << id << " but is not!!" << endl;
+    //     count_ib++;
+    //   }
+    // }
+    // for (auto ib : int_borders) {
+    //   if (cells.find(ib) == cells.end()) 
+    //   cout << "Did not find all of the cells in the internal border -- missing : " << ib->id << endl;
     // }
 
   }
@@ -813,6 +862,30 @@ namespace Cluscious {
       default:                               return std::make_pair(std::make_pair(xctr,  yctr),  sqrt(area/M_PI));   
     }
 
+  }
+
+  std::vector<std::pair<float, float> > Region::hull(bool IB) {
+
+    std::vector<std::pair<float, float> > hull_ring;
+
+    bg_mpt  multipt;
+    bg_poly poly_hull;
+
+    // if (IB) for (auto c : cells)       bgeo::append(multipt, c->pt);
+    if (IB) for (auto c : int_borders)
+      if (cells.find(c) != cells.end())
+        bgeo::append(multipt, c->pt);
+      else cout << "ib id=" << c->id << " not in cells!!" << endl;
+    else for (auto c : cells) bgeo::append(multipt, c->pt);
+
+    bgeo::convex_hull(multipt, poly_hull);
+
+    auto  it = boost::begin(boost::geometry::exterior_ring(poly_hull));
+    auto eit = boost::end  (boost::geometry::exterior_ring(poly_hull));
+    for (; it != eit; ++it)
+      hull_ring.push_back(std::make_pair<float, float>(bgeo::get<0>(*it), bgeo::get<1>(*it)));
+
+    return hull_ring;
   }
 
   std::vector<std::pair<float, float> > Region::get_point_ring() {
@@ -1412,6 +1485,13 @@ namespace Cluscious {
 
   }
 
+  std::vector<std::pair<float, float> > Universe::hull(size_t rid, int IB) { 
+    
+    if (rid >= regions.size()) return std::vector<std::pair<float, float> >();
+    return regions[rid]->hull(IB);
+
+  }
+
   std::vector<std::pair<float, float> > Universe::get_point_ring(size_t rid) { 
     
     if (rid >= regions.size()) return std::vector<std::pair<float, float> >();
@@ -1728,6 +1808,7 @@ namespace Cluscious {
   void Universe::iterate_power(float ptol, int niter, int reset_center, int verbose) {
 
     float best_tol = 1.;
+    float best_avg_tol = 1;
     std::map<int, int> best_soln;
 
     for (auto r : regions) r->has_topo = false;
@@ -1771,13 +1852,18 @@ namespace Cluscious {
       }
 
 
-      float dtol = 0.;
-      for (auto r : regions) 
-        if (fabs(r->pop/target - 1) > dtol)
-          dtol = fabs(r->pop/target - 1);
+      float max_dtol = 0.;
+      float avg_dtol = 0.;
+      for (auto r : regions) {
+        float d = fabs(r->pop/target - 1);
+        avg_dtol += d;
+        if (d > max_dtol) max_dtol = d;
+      }
 
-      if (dtol < best_tol) {
-        best_tol = dtol;
+      if (max_dtol < best_tol || 
+          (max_dtol == best_tol && avg_dtol < best_avg_tol)) {
+        best_tol = max_dtol;
+        best_avg_tol = avg_dtol;
         best_soln = cell_region_map();
         if (verbose) cout << "Iteration " << i << ", tolerance now " << best_tol << endl;
       }
@@ -2095,7 +2181,7 @@ namespace Cluscious {
   }
 
 
-  void Universe::iterate(int niter = 1, float tol = 0.05, int r = -1) {
+  void Universe::iterate(int niter = 1, float tol = 0.01, int r = -1) {
 
 
     if (r >= int(regions.size())) return;
@@ -2319,9 +2405,9 @@ namespace Cluscious {
 
     // could be faster to just rebuild.
     if (sub && !bgeo::within(sub->pt, ch_poly)) {
-      bg_mpt mpt_diff;
-      bgeo::difference(mpt, sub->pt, mpt_diff);
-      mpt_mod = mpt_diff;
+      // bg_mpt mpt_diff;
+      bgeo::difference(mpt, sub->pt, mpt_mod);
+      // mpt_mod = mpt_diff;
     }
 
     if (add && !bgeo::within(add->pt, ch_poly)) {
@@ -2399,7 +2485,7 @@ namespace Cluscious {
 
     int round = 0;
     std::unordered_set<Cell*> mod_next; // , nom_next;
-    // while (!nom_to_add.empty() || !mod_to_add.empty()) {
+    
     while (!mod_to_add.empty()) {
       round++;
 
@@ -2704,7 +2790,8 @@ namespace Cluscious {
     }
 
     if (sub) {
-      if (sub->is_univ_edge) ib_mod.erase(sub);
+      // if (sub->is_univ_edge)
+      ib_mod.erase(sub);
 
       // Again, logic from remove_cell_int_ext_neighbors
       for (auto const& n : sub->nm) {
@@ -2941,7 +3028,7 @@ namespace Cluscious {
   }
 
 
-  bool Universe::trade(Region* ir, Region* single_er, ObjectiveMethod om, float tol) {
+  bool Universe::trade(Region* ir, Region* single_er, ObjectiveMethod om) {
 
     std::unordered_map<int, bool> ib_connected;
     for (auto& ib : ir->int_borders) // ROOK, SLOW
@@ -2966,7 +3053,6 @@ namespace Cluscious {
       if (!eb->neighbors_connected(false, false)) continue;
   
       Region* er = regions[eb->region];
-      // if (fabs(er->pop - ir->pop) > tol * target) continue;
 
       if (single_er && single_er != er) continue;
 
@@ -3005,7 +3091,7 @@ namespace Cluscious {
   }
   
 
-  bool Universe::greedy(Region* rit, ObjectiveMethod omethod, float tol, float best_move, bool random, int r, bool verbose) {
+  bool Universe::greedy(Region* rit, ObjectiveMethod omethod, float gtol, float best_move, bool random, int r, bool verbose) {
     
     Cell* b_opt_c = 0;
     std::unordered_set<Cell*> opt_strands;
@@ -3025,7 +3111,7 @@ namespace Cluscious {
 
         Cell* b = *ebit;
         if (r >= 0 && b->region != r && rit->id != r) continue;
-        greedy_evaluate(rit, b, tol, omethod, best_move, b_opt_c, opt_strands, verbose);
+        greedy_evaluate(rit, b, gtol, omethod, best_move, b_opt_c, opt_strands, verbose);
         if (best_move > r_base) {
           if (verbose) cout << "    positive -- done :: " << best_move-r_base << endl;
           break;
@@ -3043,7 +3129,7 @@ namespace Cluscious {
         if (verbose) cout << "At region " << rit->id 
                           << " considering grabbing EB cell " 
                           << b->id << " from r=" << b->region << endl;
-        greedy_evaluate(rit, b, tol, omethod, best_move, b_opt_c, opt_strands, verbose);
+        greedy_evaluate(rit, b, gtol, omethod, best_move, b_opt_c, opt_strands, verbose);
       }
     }
 
@@ -3068,7 +3154,7 @@ namespace Cluscious {
   }
 
 
-  bool Universe::greedy_evaluate(Region* r, Cell* b, float tol, ObjectiveMethod omethod,
+  bool Universe::greedy_evaluate(Region* r, Cell* b, float gtol, ObjectiveMethod omethod,
                                  float& best_move, Cell*& b_opt_c, std::unordered_set<Cell*>& opt_strands,
                                  bool verbose) {
 
@@ -3078,8 +3164,17 @@ namespace Cluscious {
      float dbpop = nregions; // if it's not yet assigned, highest priority.
      if (b->region >= 0) dbpop = regions[b->region]->pop / target - 1;
 
-     float dp_ij = sign(dbpop - dpop) * pow(fabs(dpop - dbpop)/tol, ALPHA);
+     float dp_ij = sign(dbpop - dpop) * pow(fabs(dpop - dbpop)/gtol, ALPHA);
      if (fabs(dp_ij) > 1e6) dp_ij = sign(dbpop - dpop) * 1e6;
+
+     // float dp_ij = pow(fabs(r->pop/target - 1)/gtol, ALPHA) - 
+     //               pow(fabs((r->pop+b->pop)/target - 1)/gtol, ALPHA);
+
+     // if (b->region >= 0) {
+     //   dp_ij += pow(fabs( regions[b->region]->pop          /target - 1)/gtol, ALPHA) -
+     //            pow(fabs((regions[b->region]->pop - b->pop)/target - 1)/gtol, ALPHA); 
+     // } else dp_ij = 1e6;
+
 
      // current r objective fn is constant across the set we're evaluating over
      // (everything in this region), so don't worry about subtracting off its current value
@@ -3092,7 +3187,7 @@ namespace Cluscious {
 
      float dO_ij = dp_ij + dF_ij;
      if (verbose) cout << "Test moving " << b->id << " from r=" << b->region << " to " << r->id 
-                       << " :: dp_ij=" << dp_ij << " (" << dpop << " > " << dbpop << ")"
+                       << " :: dp_ij=" << dp_ij // << " (" << dpop << " > " << dbpop << ")"
                        << "  dF_ij=" << dF_ij << "  dO_ij=" << dO_ij << "     ";
      if (verbose) cout << " best now b=" << (b_opt_c ? b_opt_c->id : -1) << " val=" << best_move << endl;
 
@@ -3127,7 +3222,7 @@ namespace Cluscious {
   }
 
 
-  bool Universe::oiterate(ObjectiveMethod omethod, int niter = 1, float tol = 0.05, int conv_iter = 0, int seed = 0, int r = -1, int verbose = 0) {
+  bool Universe::oiterate(ObjectiveMethod omethod, int niter = 1, float tol = 0.01, int conv_iter = 0, int seed = 0, int r = -1, int verbose = 0) {
 
     for (auto rit : regions) {
       if (!rit->contiguous()) {
@@ -3155,7 +3250,7 @@ namespace Cluscious {
 
       for (auto rit : regions) { // over all regions...
 
-        if (TRADE) trade(rit, 0, omethod, tol * 2);
+        if (TRADE) trade(rit, 0, omethod);
 
         float cut = RANDOM ? 0 : -1;
         greedy(rit, omethod, tol, cut, RANDOM, r, verbose > 1);
@@ -3164,7 +3259,7 @@ namespace Cluscious {
 
       destrand(DESTRAND_MIN, DESTRAND_MAX);
 
-      update_best_solutions(omethod, tol * 2, verbose);
+      update_best_solutions(omethod, 2 * tol, verbose);
 
       if (conv_iter && iterations_since_improvment > conv_iter) {
         cout << "Iteration " << i << "; " << conv_iter << " since improvement." << endl;
@@ -3188,7 +3283,7 @@ namespace Cluscious {
       if (dtol > pop_max_dtol) pop_max_dtol = dtol;
     }
 
-    if ((best_tolerance_val > tol && pop_max_dtol < best_tolerance_val) ||
+    if ((best_tolerance_val > tol && pop_max_dtol <= best_tolerance_val) ||
         (pop_max_dtol < tol && best_solution_val < spatial_obj)) {
       best_solution_val = spatial_obj;
       best_tolerance_val = pop_max_dtol;
@@ -3250,9 +3345,24 @@ namespace Cluscious {
     // Do this one the easy way.
     std::vector<Cell*>::iterator cit  = cells.begin();
     while (cit != cells.end()) {
-      if ((*cit)->nm.size() == 1) {
 
-        (*cit)->nm.begin()->first->merge(*cit);
+      // This is more general than "single" cells -- 
+      // if it has exactly one ROOK connection, 
+      // I subsume it.
+      Cell* nit = 0;
+      for (auto n : (*cit)->nm) {
+        // But if this happens again, clear it and break.
+        if (nit && n.second) { nit = 0; break; }
+
+        // If it has an edge weight, set it.
+        if (n.second) nit = n.first;
+      }
+
+      // if (nit && (*cit)->nm.size() > 1) cout << "  ***  cit " << (*cit)->id << " is one of the wacky ones." << endl;
+
+      if (nit) {
+
+        nit->merge(*cit);
         // cout << "Removed cell " << (*cit)->id << endl;
         delete *cit;
 
