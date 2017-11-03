@@ -1,3 +1,9 @@
+__pycache__/
+build/
+res/
+*.pdf
+pycluscious.cpython*
+pycluscious.cpp
 algo_exp/python/img/
 algo_exp/python/processed/
 algo_exp/python/*.pdf

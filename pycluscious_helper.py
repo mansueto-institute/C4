@@ -335,7 +335,7 @@ def plot_map(gdf, filename, crm, hlt = None, shading = "district", figsize = 10,
       cmap = plt.cm.ScalarMappable(norm=norm, cmap = col)
       
       ax = dis.plot(color = "white", edgecolor = "white", figsize = fs)
-      for xi, row in dis.iterrows(): dis[dis.index == xi].plot(ax = ax, alpha = alpha, facecolor = cmap.to_rgba(row["frac"]))
+      for xi, row in dis.iterrows(): dis[dis.index == xi].plot(ax = ax, alpha = alpha, linewidth = 1, edgecolor = "black", facecolor = cmap.to_rgba(row["frac"]))
 
       fig = ax.get_figure()
       cax = fig.add_axes([0.16, 0.13, 0.70, 0.015 * np.sqrt(xr/yr)])
@@ -363,7 +363,7 @@ def plot_map(gdf, filename, crm, hlt = None, shading = "district", figsize = 10,
       cmap = plt.cm.ScalarMappable(norm=norm, cmap = col)
       
       ax = dis.plot(color = "white", edgecolor = "white", figsize = fs)
-      for xi, row in dis.iterrows(): dis[dis.index == xi].plot(ax = ax, alpha = alpha, facecolor = cmap.to_rgba(row["scores"]))
+      for xi, row in dis.iterrows(): dis[dis.index == xi].plot(ax = ax, alpha = alpha, facecolor = cmap.to_rgba(row["scores"]), linewidth = 1, edgecolor = "black")
 
       fig = ax.get_figure()
       cax = fig.add_axes([0.16, 0.13, 0.70, 0.015 * np.sqrt(xr/yr)])
@@ -387,7 +387,7 @@ def plot_map(gdf, filename, crm, hlt = None, shading = "district", figsize = 10,
       dis.plot(color = "blue", alpha = 0.3, linewidth = 1, ax = ax)
 
     else:
-      ax = dis.plot("C", alpha = 0.5, categorical = True, cmap = "nipy_spectral", linewidth = 0.20, legend = legend, figsize = fs)
+      ax = dis.plot("C", alpha = 0.5, categorical = True, cmap = "nipy_spectral", linewidth = 1, edgecolor = "black", legend = legend, figsize = fs)
 
       if legend: ax.get_legend().set_bbox_to_anchor((1, 1))
 
