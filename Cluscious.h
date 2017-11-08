@@ -339,7 +339,7 @@ namespace Cluscious {
       void iterate(int niter, float tol, int r);
 
       float ALPHA;
-      bool oiterate(ObjectiveMethod omethod, int niter, float tol, int conv_iter, int seed, int r, int verbose);
+      bool oiterate(ObjectiveMethod omethod, int niter, float llh_tol, float cut_tol, int conv_iter, int seed, int r, int verbose);
       bool greedy(Region* rit, ObjectiveMethod omethod, float tol, float best_move = 0, bool random = false, int r = -1, bool verbose = false);
       bool greedy_evaluate(Region* r, Cell* b, float tol, ObjectiveMethod omethod, float& best_move, Cell*& b_opt_c, std::unordered_set<Cell*>& opt_strands, bool verbose = false);
 
@@ -358,7 +358,7 @@ namespace Cluscious {
 
       size_t DESTRAND_MIN, DESTRAND_MAX;
       bool transfer_strand(std::unordered_set<Cell*>& strand);
-      int  destrand(int mini, size_t maxi);
+      int  destrand(int mini = 1, size_t maxi = 1e9, float ctol = 1);
 
 
   };

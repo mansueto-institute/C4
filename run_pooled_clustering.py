@@ -10,20 +10,21 @@ states = ["al", "ak", "az", "ar", "ca", "co", "ct", "de", "dc",
 	  "ok", "or", "pa", "ri", "sc", "sd", "tn", "tx", "ut", 
 	  "vt", "va", "wa", "wv", "wi", "wy"]
 
-states = ["az", "ar", "co", "ct", "fl", "ga", "ne", "oh", "tn", "tx", "wa"]
+states = ["ca", "az", "fl", "pa", "il"]
 
 args = {'no_plot': False, 'verbose': 0, 'grasp': False, 'method': 'power', 'power_restart': True,
         'borders': '', 'ncycles': 100, 'allow_trades': False, 'init': 'power:100000', 'destrand_max': 0, 
-        'niter': 100, 'print_init': True, 'shading': ['target'], 'nloops': 0, 'point': None, 'conv_iter': 1000, 
+        'niter': 100, 'print_init': True, 'shading': ['target'], 'nloops': 0, 'point': None, 'conv_iter': 500, 
         'tabu_length': 0, 'tol': 0.01, 'circle': '', 'ring': False, 'split_restart': False,
-        'destrand_min': 2, 'destrand_inputs': False}
+        'destrand_min': 2, 'destrand_inputs': False,
+        "seats" : 0, "blocks" : False, "ctol" : 0}
 
 def run_state_dict(d): run.main(**d)
 
 def queue_states():
 
   arg_list = []
-  for x in [10]:
+  for x in [220]:
     for s in states:
       arg_list.append(dc(args))
       arg_list[-1]["state"] = s

@@ -530,22 +530,19 @@ namespace Cluscious {
   Region::Region() 
     : id(0), pop(0), ncells(0), area(1e-6), xctr(0), yctr(0), xpctr(0), ypctr(0), sumw_border(0),
       Ip(0), Ia(0), has_topo(false), eps_scc(1e7), x_scc(0), y_scc(0), r2_scc(0),
-      eps_lic(2), x_lic(0), y_lic(0), r2_lic(std::numeric_limits<double>::infinity()),
-      x_pow(0), y_pow(0), r2_pow(0)
+      eps_lic(2), x_lic(0), y_lic(0), r2_lic(0), x_pow(0), y_pow(0), r2_pow(0)
   {}
 
   Region::Region(int rid) 
     : id(rid), pop(0), ncells(0), area(1e-6), xctr(0), yctr(0), xpctr(0), ypctr(0), sumw_border(0),
       Ip(0), Ia(0), has_topo(false), eps_scc(1e7), x_scc(0), y_scc(0), r2_scc(0), 
-      eps_lic(2), x_lic(0), y_lic(0), r2_lic(std::numeric_limits<double>::infinity()),
-      x_pow(0), y_pow(0), r2_pow(0)
+      eps_lic(2), x_lic(0), y_lic(0), r2_lic(0), x_pow(0), y_pow(0), r2_pow(0)
   {}
 
   Region::Region(int rid, Cell* c) 
     : id(rid), pop(0), ncells(0), area(1e-6), xctr(c->x), yctr(c->y), xpctr(c->x), ypctr(c->y), sumw_border(0),
       Ip(0), Ia(0), has_topo(false), eps_scc(1e7), x_scc(0), y_scc(0), r2_scc(0),
-      eps_lic(2), x_lic(0), y_lic(0), r2_lic(std::numeric_limits<double>::infinity()),
-      x_pow(0), y_pow(0), r2_pow(0)
+      eps_lic(2), x_lic(0), y_lic(0), r2_lic(0), x_pow(0), y_pow(0), r2_pow(0)
   { add_cell(c, true); }
 
 
@@ -1160,7 +1157,7 @@ namespace Cluscious {
     construct_voronoi(poly_pts.begin(), poly_pts.end(), &vd);
 
     double dist, x_max = xctr, y_max = yctr;
-    double dist_max = boost::numeric::bounds<double>::lowest();
+    double dist_max = 0;
 
     for (auto it : vd.vertices()) {
 
@@ -2373,8 +2370,8 @@ namespace Cluscious {
     }
 
     float r2_mod = update_lic(add, sub);
-    float amod   = area;
 
+    float amod   = area;
     if (add) amod += add->area;
     if (sub) amod -= sub->area;
 
@@ -2992,7 +2989,7 @@ namespace Cluscious {
     return false;
   }
 
-  int Universe::destrand(int min = 1, size_t max = 1e9) {
+  int Universe::destrand(int min, size_t max, float ctol) {
 
     std::unordered_set<Cell*> opt_strand;
 
@@ -3002,6 +2999,7 @@ namespace Cluscious {
         // It's not a "strand" if it hasn't
         // been assigned to a region.
         if (b->region < 0) continue;
+        if (fabs(regions[b->region]->pop - r->pop)/target > ctol) continue;
 
         std::unordered_set<Cell*> strand;
         size_t strand_max = max;
@@ -3222,7 +3220,10 @@ namespace Cluscious {
   }
 
 
-  bool Universe::oiterate(ObjectiveMethod omethod, int niter = 1, float tol = 0.01, int conv_iter = 0, int seed = 0, int r = -1, int verbose = 0) {
+  bool Universe::oiterate(ObjectiveMethod omethod, int niter = 1, float llh_tol = 0.01, float cut_tol = 0, 
+                          int conv_iter = 0, int seed = 0, int r = -1, int verbose = 0) {
+
+    if (!cut_tol) cut_tol = 2 * llh_tol;
 
     for (auto rit : regions) {
       if (!rit->contiguous()) {
@@ -3253,17 +3254,17 @@ namespace Cluscious {
         if (TRADE) trade(rit, 0, omethod);
 
         float cut = RANDOM ? 0 : -1;
-        greedy(rit, omethod, tol, cut, RANDOM, r, verbose > 1);
+        greedy(rit, omethod, llh_tol, cut, RANDOM, r, verbose > 1);
 
       }
 
-      destrand(DESTRAND_MIN, DESTRAND_MAX);
+      destrand(DESTRAND_MIN, DESTRAND_MAX, cut_tol);
 
-      update_best_solutions(omethod, 2 * tol, verbose);
+      update_best_solutions(omethod, cut_tol, verbose);
 
       if (conv_iter && iterations_since_improvment > conv_iter) {
         cout << "Iteration " << i << "; " << conv_iter << " since improvement." << endl;
-        cout << "Best solution now " << best_solution_val/nregions << ".  Returning...." << endl;
+        cout << "Best solution now " << best_solution_val << " / " << nregions << " = " << best_solution_val/nregions << ".  Returning...." << endl;
         return true;
       }
     }
@@ -3283,7 +3284,7 @@ namespace Cluscious {
       if (dtol > pop_max_dtol) pop_max_dtol = dtol;
     }
 
-    if ((best_tolerance_val > tol && pop_max_dtol <= best_tolerance_val) ||
+    if ((best_tolerance_val > tol && pop_max_dtol < best_tolerance_val) ||
         (pop_max_dtol < tol && best_solution_val < spatial_obj)) {
       best_solution_val = spatial_obj;
       best_tolerance_val = pop_max_dtol;

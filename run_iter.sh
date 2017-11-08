@@ -9,7 +9,7 @@ echo RUNNING :: $x $s $m
 C=20
 N=10000
 shading="none"
-# shading="target district"
+shading="target district"
 
 # POWER DIST RADII IPQ CIRCLES HULL INERTIA AXIS SPLIT PATH_FRAC
 
@@ -28,9 +28,9 @@ elif [[ "$METHOD" == "RADII" ]]; then
 elif [[ "$METHOD" == "IPQ" ]]; then
   ./run.py -s ${s} -m polsby       -t 0.01  -x${x} -n$N -c$C --conv_iter 1000 --destrand_min 5 --destrand_max 50 --tabu_length 10 --allow_trades  --shading $shading 
 elif [[ "$METHOD" == "CIRCLES" ]]; then
-  ./run.py -s ${s} -m exchange     -t 0.01  -x${x} -n$N -c$C --conv_iter 500  --destrand_min 3 --destrand_max 50                                  --shading $shading  
+  ./run.py -s ${s} -m ehrenburg    -t 0.005 --ctol 0.02 -x${x} -n$N -c$C --conv_iter 500 --destrand_min 10 --destrand_max 50 --allow_trades --shading all -o lic -p lic -r -v 1
   ./run.py -s ${s} -m reock        -t 0.01  -x${x} -n$N -c$C --conv_iter 500  --destrand_min 5 --destrand_max 50 --allow_trades                   --shading $shading  -o scc -p scc
-  ./run.py -s ${s} -m ehrenburg    -t 0.01  -x${x} -n$N -c$C --conv_iter 500  --destrand_min 3 --destrand_max 50 --allow_trades                   --shading $shading  -o lic -p lic -r
+  ./run.py -s ${s} -m exchange     -t 0.005 -x${x} -n$N -c$C --conv_iter 500  --destrand_min 5 --destrand_max 50                                  --shading $shading  
 elif [[ "$METHOD" == "HULL" ]]; then
   ./run.py -s ${s} -m hull_a       -t 0.01  -x${x} -n$N -c$C --conv_iter 500  --destrand_min 5 --destrand_max 50 --allow_trades                   --shading $shading  -o hull 
   ./run.py -s ${s} -m hull_p       -t 0.01  -x${x} -n$N -c$C --conv_iter 500  --destrand_min 3 --destrand_max 50 --allow_trades                   --shading $shading  -o hull 
@@ -40,6 +40,6 @@ elif [[ "$METHOD" == "INERTIA" ]]; then
 elif [[ "$METHOD" == "AXIS" ]]; then
   ./run.py -s ${s} -m axis_ratio   -t 0.01  -x${x} -n$N -c$C --conv_iter 500  --destrand_min 5 --destrand_max 50                                  --shading $shading 
 else
-  ./run.py -s ${s} -i power:100000 -t 0.01  -x${x} -l0 -x0 --power_restart --print_init -c$C -w ${s}/power/$(printf "s%03d" $x) -m power --shading $shading
+  ./run.py -s ${s} -i power:100000 -t 0.01  -x${x} -l0 -c$C --power_restart --print_init -w ${s}/power/$(printf "s%03d" $x) -m power --shading $shading
 fi
 

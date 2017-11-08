@@ -87,9 +87,9 @@ cdef extern from "Cluscious.h" namespace "Cluscious" :
         void load_best_solution()
         void load_partition(map[int, int] rmap)
         void iterate(int, float, int)
-        int  destrand(int, int)
+        int  destrand(int, int, float)
 
-        int  oiterate(ObjectiveMethod, int, float, int, int, int, int);
+        int  oiterate(ObjectiveMethod, int, float, float, int, int, int, int);
 
         void iterate_power(float, int, int, int)
 
@@ -263,10 +263,10 @@ cdef class universe:
             rmapd[sp[0]] = sp[1]
           self.c_univ.load_partition(rmapd)
 
-    def destrand(self, mini = None, maxi = None):
+    def destrand(self, mini = None, maxi = None, ctol = 1):
         if not mini: mini = 1
         if not maxi: maxi = 1e9
-        return self.c_univ.destrand(mini, maxi)
+        return self.c_univ.destrand(mini, maxi, ctol)
 
     def iterate_power(self, float tol, int niter = 1, int reset = 0, int verbose = 0):
         self.c_univ.iterate_power(tol, niter, reset, verbose)
@@ -274,8 +274,9 @@ cdef class universe:
     def iterate(self, int niter = 1, float tol = 0.05, int r = -1):
         self.c_univ.iterate(niter, tol, r)
 
-    def oiterate(self, int om_i = 0, int niter = 1, float tol = 0.05, int conv_iter = 0, int seed = 0, int reg = -1, int verbose = 0):
-        return self.c_univ.oiterate(ObjectiveMethod(om_i), niter, tol, conv_iter, seed, reg, verbose)
+    def oiterate(self, int om_i = 0, int niter = 1, float llh_tol = 0.01, float cut_tol = 0.02, 
+                 int conv_iter = 0, int seed = 0, int reg = -1, int verbose = 0):
+        return self.c_univ.oiterate(ObjectiveMethod(om_i), niter, llh_tol, cut_tol, conv_iter, seed, reg, verbose)
 
     def get_objectives(self, int om_i):
         return {r.id : r.obj(ObjectiveMethod(om_i)) for r in self.c_univ.regions}

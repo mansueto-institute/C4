@@ -117,7 +117,7 @@ def point_df(u, point = True):
                                     for r in range(u.nregions)]])
 
 
-def main(state, seed, method, seats, ncycles, split_restart, power_restart, niter, nloops, tol, conv_iter, init, write, 
+def main(state, seed, method, seats, ncycles, split_restart, power_restart, niter, nloops, tol, ctol, conv_iter, init, write, 
          grasp, allow_trades, destrand_inputs, destrand_min, destrand_max, tabu_length,
          circle, ring, point, print_init, no_plot, shading, borders, verbose, blocks):
 
@@ -186,7 +186,7 @@ def main(state, seed, method, seats, ncycles, split_restart, power_restart, nite
 
       converged = False
       if i:
-        converged = u.oiterate(pycl_methods[method], niter = niter, tol = tol, conv_iter = conv_iter, seed = seed, verbose = verbose)
+        converged = u.oiterate(pycl_methods[method], niter = niter, llh_tol = tol, cut_tol = ctol, conv_iter = conv_iter, seed = seed, verbose = verbose)
       elif not print_init: continue
       
       if (converged or i == nloops) and u.get_best_solution(): u.load_best_solution()
@@ -242,7 +242,8 @@ if __name__ == "__main__":
   parser.add_argument("-l", "--nloops",    default = 1, type = int, help = "Loops: number of times to run iter")
   parser.add_argument("-n", "--niter",     default = 100, type = int, help = "Max iterations per loop.")
   parser.add_argument("--conv_iter",       default = 0, type = int, help = "Stop after X without improvement.")
-  parser.add_argument("-t", "--tol",       default = 0.02, type = float)
+  parser.add_argument("-t", "--tol",       default = 0.01, type = float)
+  parser.add_argument("--ctol",            default = 0.02, type = float)
   parser.add_argument("--power_restart",   action  = "store_true", help = "Number of restarts (split/merge)")
   parser.add_argument("--split_restart",   action  = "store_true", help = "Number of restarts (split/merge)")
 
