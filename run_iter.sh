@@ -9,7 +9,7 @@ echo RUNNING :: $x $s $m
 C=20
 N=10000
 shading="none"
-shading="target district"
+# shading="target district"
 
 # POWER DIST RADII IPQ CIRCLES HULL INERTIA AXIS SPLIT PATH_FRAC
 
@@ -32,8 +32,8 @@ elif [[ "$METHOD" == "CIRCLES" ]]; then
   ./run.py -s ${s} -m reock        -t 0.01  -x${x} -n$N -c$C --conv_iter 500  --destrand_min 5 --destrand_max 50 --allow_trades                   --shading $shading  -o scc -p scc
   ./run.py -s ${s} -m exchange     -t 0.005 -x${x} -n$N -c$C --conv_iter 500  --destrand_min 5 --destrand_max 50                                  --shading $shading  
 elif [[ "$METHOD" == "HULL" ]]; then
-  ./run.py -s ${s} -m hull_a       -t 0.01  -x${x} -n$N -c$C --conv_iter 500  --destrand_min 5 --destrand_max 50 --allow_trades                   --shading $shading  -o hull 
   ./run.py -s ${s} -m hull_p       -t 0.01  -x${x} -n$N -c$C --conv_iter 500  --destrand_min 3 --destrand_max 50 --allow_trades                   --shading $shading  -o hull 
+  ./run.py -s ${s} -m hull_a       -t 0.01  -x${x} -n$N -c$C --conv_iter 500  --destrand_min 5 --destrand_max 50 --allow_trades                   --shading $shading  -o hull 
 elif [[ "$METHOD" == "INERTIA" ]]; then
   ./run.py -s ${s} -m inertia_a    -t 0.01  -x${x} -n$N -c$C --conv_iter 500  --destrand_min 5 --destrand_max 50                                  --shading $shading 
   ./run.py -s ${s} -m inertia_p    -t 0.01  -x${x} -n$N -c$C --conv_iter 500  --destrand_min 5 --destrand_max 50                                  --shading $shading 

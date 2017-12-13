@@ -517,7 +517,9 @@ namespace Cluscious {
     
     m->disconnect();
 
-    area += m->area;
+    // Including the area screws up some 
+    // of the calculations with area normalizations.
+    // area += m->area;
     pop  += m->pop;
 
     for (auto ei : m->enclaves_and_islands)
@@ -2288,7 +2290,7 @@ namespace Cluscious {
     if (add) return   r2 / add->d2(xx, yy);
     if (sub) return - r2 / sub->d2(xx, yy);
 
-    return obj_dyn_radius();
+    return obj_mean_radius();
 
   }
 

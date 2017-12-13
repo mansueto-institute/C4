@@ -5,7 +5,7 @@ shapes = """SELECT census_tracts_2015.county, census_tracts_2015.tract,
                    ST_Transform(census_tracts_2015.geomsimp, states.epsg) as geometry, 
                    ST_X(ST_Transform(census_tracts_2015.centroid, states.epsg)) as x, 
                    ST_Y(ST_Transform(census_tracts_2015.centroid, states.epsg)) as y,
-                   census_tracts_2015.aland as A, b01001_001e as pop,
+                   census_tracts_2015.area as A, b01001_001e as pop,
                    CASE WHEN (ST_NumGeometries(census_tracts_2015.geomsimp) > 1) THEN 1 ELSE 0 END AS split
             FROM census_tracts_2015
             JOIN acssf5y2015 on
@@ -69,4 +69,26 @@ nodes = """
         ;
         """
 
+race = """SELECT
+            rn.rn, d.state, d.county cid, d.tract,
+            b01001_001e pop, b01001a_001e white,
+            b01001b_001e black, b01001i_001e hispanic,
+            total_vap, black_vap, hispanic_vap
+          FROM census_tracts_2015 AS g
+          JOIN states AS s ON
+            g.state = s.fips
+          JOIN acssf5y2015 AS d ON
+            d.state  = g.state  AND
+            d.county = g.county AND
+            d.tract  = g.tract
+          JOIN (SELECT state, county, tract,
+                       row_number() over (PARTITION BY state ORDER BY county, tract NULLS LAST) - 1 as rn
+                FROM census_tracts_2015) rn ON
+            g.state  = rn.state  AND
+            g.county = rn.county AND
+            g.tract  = rn.tract
+          WHERE s.usps = UPPER('{}')
+          ORDER BY d.state, d.county, d.tract
+          ;
+          """
 

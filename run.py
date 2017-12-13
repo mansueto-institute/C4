@@ -13,9 +13,9 @@ import operator
 
 import time
 
-def load_data(state, method, seats = None, blocks = False):
+def load_data(state, method, seats = None, bgroup = False):
 
-  ens_data(state, blocks)
+  ens_data(state, bgroup)
 
   if not seats: seats = get_seats(state) 
 
@@ -26,7 +26,7 @@ def load_data(state, method, seats = None, blocks = False):
   u = pycl.universe(seats)
 
   tag = ""
-  if blocks: tag = "_blocks"
+  if bgroup: tag = "_bgroup"
   
   gdf = gpd.read_file(shapefile.format(state + tag))
   edges, spw = spw_from_shapefile(shapefile.format(state + tag))
@@ -117,11 +117,11 @@ def point_df(u, point = True):
                                     for r in range(u.nregions)]])
 
 
-def main(state, seed, method, seats, ncycles, split_restart, power_restart, niter, nloops, tol, ctol, conv_iter, init, write, 
+def main(state, seed, method, seats, ncycles, split_restart, power_restart, niter, nloops, tol, ctol, conv_iter, init, output, write, 
          grasp, allow_trades, destrand_inputs, destrand_min, destrand_max, tabu_length,
-         circle, ring, point, print_init, no_plot, shading, borders, verbose, blocks):
+         circle, ring, point, print_init, no_plot, shading, borders, verbose, bgroup):
 
-  u, gdf = load_data(state, method, seats, blocks)
+  u, gdf = load_data(state, method, seats, bgroup)
 
   u.RANDOM       = grasp 
   u.TRADE        = allow_trades
@@ -129,7 +129,7 @@ def main(state, seed, method, seats, ncycles, split_restart, power_restart, nite
   u.DESTRAND_MIN = destrand_min
   u.DESTRAND_MAX = destrand_max
 
-  if not init:
+  if "seed" in init:
     u.rand_init(seed)
 
   elif "kmeans" in init:
@@ -164,14 +164,14 @@ def main(state, seed, method, seats, ncycles, split_restart, power_restart, nite
     print("Exiting....")
     sys.exit()
 
-  ens_dir("res/{}".format(write))
-  ens_dir("res/json/")
+  ens_dir("{}/{}".format(output, write))
+  ens_dir("{}/json/".format(output))
 
   for c in range(ncycles):
 
     if ncycles > 1:
       write_cycle = write + "/c{:03d}".format(c)
-      ens_dir("res/{}".format(write_cycle))
+      ens_dir("{}/{}".format(output, write_cycle))
       if c:
         if power_restart:
           sinit = init.split(":")
@@ -201,27 +201,27 @@ def main(state, seed, method, seats, ncycles, split_restart, power_restart, nite
         scores = [1] * u.nregions
         if method in pycl_methods: scores = u.get_objectives(pycl_methods[method])
 
-        plot_map(gdf, "res/{}/{}_{}.pdf".format(write_cycle, tag, s),
+        plot_map(gdf, "{}/{}/{}_{}.pdf".format(output, write_cycle, tag, s),
                  label = pycl_formal[method] if i else init.capitalize(),
                  crm = crm, hlt = u.border_cells(True if "ext" in borders else False) if borders else None, shading = s,
                  ring = ring_df(u, (ring or s == "density")),
                  circ = circle_df(u, circle), point = point_df(u, point), scores = scores, legend = bool(verbose))
 
-      with open ("res/{}/{}.csv".format(write_cycle, tag), "w") as out:
+      with open ("{}/{}/{}.csv".format(output, write_cycle, tag), "w") as out:
         for k, v in crm.items(): out.write("{},{}\n".format(k, v))
 
       print(write_cycle, ":: completed iteration", i)
 
       if converged: break
 
-    save_json("res/json/{}.json".format(write_cycle.replace("/", "_")),
+    save_json("{}/json/{}.json".format(output, write_cycle.replace("/", "_")),
               state, pycl_short[method], write_cycle, gdf, crm = u.cell_region_map(),
               metrics = {pycl_short[k] : u.get_objectives(v) for k, v in pycl_methods.items()},
-              tracts = not blocks)
+              seats = u.nregions, bgroup = bgroup)
 
-    save_geojson(gdf, "res/{}/final.geojson".format(write_cycle), u.cell_region_map(), state,
+    save_geojson(gdf, "{}/{}/final.geojson".format(output, write_cycle), u.cell_region_map(), state,
                  metrics = {pycl_short[k] : u.get_objectives(v) for k, v in pycl_methods.items()},
-                 tracts = not blocks)
+                 bgroup = bgroup)
 
 
 if __name__ == "__main__":
@@ -230,12 +230,12 @@ if __name__ == "__main__":
   parser = argparse.ArgumentParser()
 
   # Initialization 
-  parser.add_argument("-i", "--init",      default = "", type = str)
+  parser.add_argument("-i", "--init",      default = "seed", type = str)
   parser.add_argument("-x", "--seed",      default = 0, type = int)
   parser.add_argument("-s", "--state",     default = "pa", type=str.lower, choices = us_states, help='state')
   parser.add_argument("-w", "--write",     default = "", type = str)
   parser.add_argument("-m", "--method",    default = "dist_a", choices = pycl_formal, type = str)
-  parser.add_argument("-b", "--blocks",    action  = "store_true")
+  parser.add_argument("-b", "--bgroup",    action  = "store_true")
 
   # Looping parameters.
   parser.add_argument("-c", "--ncycles",   default = 1, type = int, help = "Number of restarts (split/merge)")
@@ -263,6 +263,7 @@ if __name__ == "__main__":
   parser.add_argument("--no_plot",         action  = "store_true")
   parser.add_argument("--borders",         default = "", choices = ["ext", "int"])
   parser.add_argument("--print_init",      action  = "store_true")
+  parser.add_argument("--output",          default = "res")
 
   # Number of seats -- default is US Cong.
   parser.add_argument("--seats",           default = 0, type = int)
@@ -271,7 +272,7 @@ if __name__ == "__main__":
   parser.add_argument("-v", "--verbose",   default = 0, type = int)
   args = parser.parse_args()
 
-  if not args.write: args.write = "{}/{}/s{:03d}".format(args.state, args.method, args.seed)
+  if not args.write: args.write = "{}/{}/{}/s{:03d}".format(args.output, args.state, args.method, args.seed)
   if "all" in [s.lower() for s in args.shading]: args.shading = ["district", "target", "density", "scores"]
   if "none" in [s.lower() for s in args.shading]: args.shading = []
   if args.nloops == 0: method = args.init

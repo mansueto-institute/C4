@@ -47,15 +47,15 @@ def ens_dir(f, quiet = False):
     os.makedirs(f)
     # print("Remade file", f)
 
-def ens_data(usps, blocks): 
+def ens_data(usps, bgroup): 
 
   ens_dir("shapes/")
   ens_dir("demographic/")
   cache_stateinfo(usps)
-  cache_shapefile(usps, blocks)
-  cache_edge_file(usps, blocks)
-  cache_node_file(usps, blocks)
-  cache_race_file(usps)
+  cache_shapefile(usps, bgroup)
+  cache_edge_file(usps, bgroup)
+  cache_node_file(usps, bgroup)
+  cache_race_file(usps, bgroup)
 
 
 import pycluscious as pycl
@@ -155,7 +155,7 @@ def cache_stateinfo(usps):
      print("Failed -- no geo db authentication or cached files.")
      sys.exit(7)
 
-   if blocks: import ps_block_query as query
+   if bgroup: import ps_bg_query as query
    else:      import ps_query as query
 
    con = psycopg2.connect(database = "census", user = user, password = passwd,
@@ -170,9 +170,9 @@ def cache_stateinfo(usps):
    state_df[["id", "state"]].to_file(filename + ".shp")
 
 
-def cache_shapefile(usps, blocks = False):
+def cache_shapefile(usps, bgroup = False):
 
-   tag = "_blocks" if blocks else ""
+   tag = "_bgroup" if bgroup else ""
    filename = shapefile.format(usps.lower() + tag)
 
    if os.path.exists(filename): return
@@ -181,7 +181,7 @@ def cache_shapefile(usps, blocks = False):
      print("Failed -- no geo db authentication or cached files.")
      sys.exit(7)
 
-   if blocks: import ps_block_query as query
+   if bgroup: import ps_bg_query as query
    else:      import ps_query as query
 
    state = get_state_info(usps)
@@ -197,9 +197,9 @@ def cache_shapefile(usps, blocks = False):
 
 
 
-def cache_edge_file(usps, blocks = False):
+def cache_edge_file(usps, bgroup = False):
 
-   tag = "_blocks" if blocks else ""
+   tag = "_bgroup" if bgroup else ""
    filename = edge_file.format(usps.lower() + tag)
 
    if os.path.exists(filename + ".csv"): return
@@ -208,7 +208,7 @@ def cache_edge_file(usps, blocks = False):
      print("Failed -- no geo db authentication or cached files.")
      sys.exit(7)
 
-   if blocks: import ps_block_query as query
+   if bgroup: import ps_bg_query as query
    else:      import ps_query as query
 
    state = get_state_info(usps)
@@ -224,9 +224,9 @@ def cache_edge_file(usps, blocks = False):
    geo_df[["rn","seq","eid","rev","nodea","nodeb"]].to_csv(filename + ".csv", index = False)
 
 
-def cache_node_file(usps, blocks = False):
+def cache_node_file(usps, bgroup = False):
 
-   tag = "_blocks" if blocks else ""
+   tag = "_bgroup" if bgroup else ""
    filename = node_file.format(usps.lower() + tag)
 
    if os.path.exists(filename + ".csv"): return
@@ -235,7 +235,7 @@ def cache_node_file(usps, blocks = False):
      print("Failed -- no geo db authentication or cached files.")
      sys.exit(7)
 
-   if blocks: import ps_block_query as query
+   if bgroup: import ps_bg_query as query
    else:      import ps_query as query
 
    state = get_state_info(usps)
@@ -253,41 +253,24 @@ def cache_node_file(usps, blocks = False):
    geo_ndf[ndf["nseq"] == 1][["nid", "geometry"]].to_file(filename + ".shp")
 
 
-def cache_race_file(usps, tag = None):
+def cache_race_file(usps, bgroup = False):
 
-  filename = race_file.format(usps.lower())
-  if tag: filename = filename.replace(".", "_" + tag + ".")
+  tag = "_bgroup" if bgroup else ""
+  filename = race_file.format(usps.lower() + tag)
 
   if os.path.exists(filename): return
 
   if not passwd:
     print("Failed -- no geo db authentication or cached files.")
     sys.exit(7)
+
+  if bgroup: import ps_bg_query as query
+  else:      import ps_query as query
     
-  pd.read_sql("""SELECT
-                   rn.rn, d.state, d.county cid, d.tract,
-                   b01001_001e pop, b01001a_001e white,
-                   b01001b_001e black, b01001i_001e hispanic,
-                   total_vap, black_vap, hispanic_vap
-                 FROM census_tracts_2015 AS g
-                 JOIN states AS s ON
-                   g.state = s.fips
-                 JOIN acssf5y2015 AS d ON
-                   d.state  = g.state  AND
-                   d.county = g.county AND
-                   d.tract  = g.tract
-                 JOIN (SELECT state, county, tract,
-                              row_number() over (PARTITION BY state ORDER BY county, tract NULLS LAST) - 1 as rn
-                       FROM census_tracts_2015) rn ON
-                   g.state  = rn.state  AND
-                   g.county = rn.county AND
-                   g.tract  = rn.tract
-                 WHERE s.usps = UPPER('{}')
-                 ORDER BY d.state, d.county, d.tract;
-                 """.format(usps),
-                 con = psycopg2.connect(database = "census", user = user, password = passwd,
-                                        host = "saxon.harris.uchicago.edu", port = 5432),
-                 index_col = "rn").to_csv(filename)
+  pd.read_sql(query.race.format(usps),
+              con = psycopg2.connect(database = "census", user = user, password = passwd,
+                                     host = "saxon.harris.uchicago.edu", port = 5432),
+              index_col = "rn").to_csv(filename)
 
 
 
@@ -428,9 +411,11 @@ def plot_map(gdf, filename, crm, hlt = None, shading = "district", figsize = 10,
     plt.close('all')
 
 
-def save_json(filename, usps, method, uid, gdf, crm, metrics, tracts = True):
+def save_json(filename, usps, method, uid, gdf, crm, metrics, seats, bgroup = False):
 
     of = open(filename, 'w')
+
+    tag = "_bgroup" if bgroup else ""
 
     js = {"USPS" : usps.upper(), "FIPS" : get_fips(usps), 
           "Method" : method, "Seats" : get_seats(usps), "UID" : uid,
@@ -440,8 +425,8 @@ def save_json(filename, usps, method, uid, gdf, crm, metrics, tracts = True):
     gdf["C"] = pd.Series(crm)
 
     elections = []
-    if usps and os.path.exists(vote_file.format(usps.lower())) and tracts:
-      votes = pd.read_csv(vote_file.format(usps.lower()), index_col = "rn")
+    if usps and os.path.exists(vote_file.format(usps.lower() + tag)):
+      votes = pd.read_csv(vote_file.format(usps.lower() + tag), index_col = "rn")
       votes = votes.filter(regex = '[DR][0-9]{2}', axis = 1)
 
       gdf = gdf.join(votes)
@@ -449,8 +434,8 @@ def save_json(filename, usps, method, uid, gdf, crm, metrics, tracts = True):
       elections = set([int(el[1:]) + (1900 if int(el[1:]) > 50 else 2000) for el in votes.columns])
 
     race = None
-    if usps and os.path.exists(race_file.format(usps.lower())) and tracts:
-      race = pd.read_csv(race_file.format(usps.lower()), index_col = "rn")
+    if usps and os.path.exists(race_file.format(usps.lower() + tag)):
+      race = pd.read_csv(race_file.format(usps.lower() + tag), index_col = "rn")
       race.rename(columns = {"pop" : "TotalPopulation"}, inplace = True)
       gdf = gdf.join(race)
 
@@ -507,6 +492,8 @@ def save_json(filename, usps, method, uid, gdf, crm, metrics, tracts = True):
       for k in metrics: dist["Spatial"][k] = float(row[k])
 
       for elyr in elections: 
+
+        
         el = "{:02d}".format(elyr % 100)
         dist["Elections"][elyr] = {}
         dist["Elections"][elyr]["Party"] = "R" if row["R" + el] > row["D" + el] else "D"
@@ -514,7 +501,7 @@ def save_json(filename, usps, method, uid, gdf, crm, metrics, tracts = True):
         dist["Elections"][elyr]["RepFrac"] = float(row["R" + el] / (row["D" + el] + row["R" + el]))
         dist["Elections"][elyr]["DemVotes"] = int(row["D" + el])
         dist["Elections"][elyr]["RepVotes"] = int(row["R" + el])
-
+        
       dist["AreaSqMi"] = float(row.AreaSqMi)
       dist["Cells"] = list(int(k) for k, v in crm.items() if v == row.ID)
 
@@ -525,26 +512,45 @@ def save_json(filename, usps, method, uid, gdf, crm, metrics, tracts = True):
 
 
 
-def save_geojson(gdf, filename, crm, usps = None, metrics = None, tracts = True):
+def save_geojson(gdf, filename, crm, usps = None, metrics = None, bgroup = False):
+
+    tag = "_bgroup" if bgroup else ""
 
     gdf["C"] = pd.Series(crm)
 
     elections, vote_columns = [], []
-    if usps and os.path.exists(vote_file.format(usps.lower())) and tracts:
-      votes = pd.read_csv(vote_file.format(usps.lower()), index_col = "rn")
+    if usps and os.path.exists(vote_file.format(usps.lower() + tag)):
+      votes = pd.read_csv(vote_file.format(usps.lower() + tag), index_col = "rn")
       votes = votes.filter(regex = '[DR][0-9]{2}', axis = 1)
 
       gdf = gdf.join(votes)
       vote_columns = list(votes.columns)
       elections = set([el[1:] for el in votes.columns])
 
+    race, race_columns = None, []
+    if usps and os.path.exists(race_file.format(usps.lower() + tag)):
+
+      race = pd.read_csv(race_file.format(usps.lower() + tag), index_col = "rn",
+                         usecols = ["rn", "black_vap", "hispanic_vap", "total_vap"])
+
+      gdf = gdf.join(race)
+
+
     dis = gdf.dissolve("C", aggfunc='sum')
     dis.reset_index(inplace = True)
+
+    if race is not None:
+      dis["Black VAP Frac"] = dis["black_vap"] / dis["total_vap"]
+      dis["Hispanic VAP Frac"] = dis["hispanic_vap"] / dis["total_vap"]
+      dis.drop(["black_vap", "hispanic_vap", "total_vap"], inplace = True, axis = 1)
+
+      race_columns = ["Black VAP Frac", "Hispanic VAP Frac"]
+
 
     target = dis["pop"].sum() / dis.shape[0]
     dis["frac"] = (dis["pop"] / target).map('{:.03f}'.format)
 
-    dis = dis[["C", "a", "frac", "geometry", "pop"] + vote_columns]
+    dis = dis[["C", "a", "frac", "geometry", "pop"] + vote_columns + race_columns]
 
     dis["a"] *= 3.8610216e-7 # m2 to mi2
     dis["a"] = dis["a"].astype(int)
