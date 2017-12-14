@@ -152,7 +152,8 @@ def cache_stateinfo(usps):
    if os.path.exists(filename + ".csv"): return
 
    if not passwd:
-     print("Failed -- no geo db authentication or cached files.")
+     print("Failed -- no geo db authentication or cached info files:", filename + ".csv")
+     print(glob.glob("*/{}*".format(usps)))
      sys.exit(7)
 
    if bgroup: import ps_bg_query as query
@@ -178,7 +179,8 @@ def cache_shapefile(usps, bgroup = False):
    if os.path.exists(filename): return
 
    if not passwd:
-     print("Failed -- no geo db authentication or cached files.")
+     print("Failed -- no geo db authentication or cached shape files:", filename)
+     print(glob.glob("*/{}*".format(usps)))
      sys.exit(7)
 
    if bgroup: import ps_bg_query as query
@@ -205,7 +207,8 @@ def cache_edge_file(usps, bgroup = False):
    if os.path.exists(filename + ".csv"): return
 
    if not passwd:
-     print("Failed -- no geo db authentication or cached files.")
+     print("Failed -- no geo db authentication or cached edge files:", filename + ".csv")
+     print(glob.glob("*/{}*".format(usps)))
      sys.exit(7)
 
    if bgroup: import ps_bg_query as query
@@ -232,7 +235,8 @@ def cache_node_file(usps, bgroup = False):
    if os.path.exists(filename + ".csv"): return
 
    if not passwd:
-     print("Failed -- no geo db authentication or cached files.")
+     print("Failed -- no geo db authentication or cached node files:", filename + ".csv")
+     print(glob.glob("*/{}*".format(usps)))
      sys.exit(7)
 
    if bgroup: import ps_bg_query as query
@@ -261,7 +265,8 @@ def cache_race_file(usps, bgroup = False):
   if os.path.exists(filename): return
 
   if not passwd:
-    print("Failed -- no geo db authentication or cached files.")
+    print("Failed -- no geo db authentication or cached race files:", filename)
+    print(glob.glob("*/{}*".format(usps)))
     sys.exit(7)
 
   if bgroup: import ps_bg_query as query
