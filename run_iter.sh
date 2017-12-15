@@ -32,8 +32,9 @@ elif [[ "$METHOD" == "CIRCLES" ]]; then
                                                                               --destrand_min 10 --destrand_max 50 --allow_trades --shading $shading -o lic -p lic -r -v 1
   ./run.py -s ${s} -m reock        -t 0.01  -x${x} -n$N -c$C --conv_iter 500  --destrand_min 5 --destrand_max 50 --allow_trades                   --shading $shading  -o scc -p scc
   ./run.py -s ${s} -m exchange     -t 0.005 -x${x} -n$N -c$C --conv_iter 500  --destrand_min 5 --destrand_max 50                                  --shading $shading  
-elif [[ "$METHOD" == "HULL" ]]; then
+elif [[ "$METHOD" == "HULL_P" ]]; then
   ./run.py -s ${s} -m hull_p       -t 0.01  -x${x} -n$N -c$C --conv_iter 500  --destrand_min 3 --destrand_max 50 --allow_trades                   --shading $shading  -o hull 
+elif [[ "$METHOD" == "HULL_A" ]]; then
   ./run.py -s ${s} -m hull_a       -t 0.01  -x${x} -n$N -c$C --conv_iter 500  --destrand_min 5 --destrand_max 50 --allow_trades                   --shading $shading  -o hull 
 elif [[ "$METHOD" == "INERTIA" ]]; then
   ./run.py -s ${s} -m inertia_a    -t 0.01  -x${x} -n$N -c$C --conv_iter 500  --destrand_min 5 --destrand_max 50                                  --shading $shading 
