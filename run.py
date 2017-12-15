@@ -272,7 +272,7 @@ if __name__ == "__main__":
   parser.add_argument("-v", "--verbose",   default = 0, type = int)
   args = parser.parse_args()
 
-  if not args.write: args.write = "{}/{}/{}/s{:03d}".format(args.output, args.state, args.method, args.seed)
+  if not args.write: args.write = "{}/{}/s{:03d}".format(args.state, args.method, args.seed)
   if "all" in [s.lower() for s in args.shading]: args.shading = ["district", "target", "density", "scores"]
   if "none" in [s.lower() for s in args.shading]: args.shading = []
   if args.nloops == 0: method = args.init
