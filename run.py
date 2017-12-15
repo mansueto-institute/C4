@@ -210,7 +210,7 @@ def main(state, seed, method, seats, ncycles, split_restart, power_restart, nite
       with open ("{}/{}/{}.csv".format(output, write_cycle, tag), "w") as out:
         for k, v in crm.items(): out.write("{},{}\n".format(k, v))
 
-      print(write_cycle, ":: completed iteration", i)
+      print(write_cycle, ":: completed iteration", i, flush = True)
 
       if converged: break
 
