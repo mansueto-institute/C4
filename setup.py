@@ -8,8 +8,8 @@ if sys.platform == "darwin":
   ouff_mac = ['-mmacosx-version-min=10.9']
 
 EXTENSION = distutils.extension.Extension(
-    name = 'pycluscious', language = 'c++',
-    sources = ['pycluscious.pyx'],
+    name = 'pyc4', language = 'c++',
+    sources = ['pyc4.pyx'],
     extra_compile_args = ['-Wno-unused-function', 
                           '-std=c++11', '-Wall'] + ouff_mac,
     undef_macros       = ["NDEBUG"],

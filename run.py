@@ -5,8 +5,8 @@ import argparse
 import sys, os, re, math
 from random import randint, choice
 
-import pycluscious as pycl
-from pycluscious_helper import *
+import pyc4
+from pyc4_helper import *
 
 import random
 import operator
@@ -23,7 +23,7 @@ def load_data(state, method, seats = None, bgroup = False):
     print(state, "has a single districting -- returning.")
     sys.exit()
 
-  u = pycl.universe(seats)
+  u = pyc4.universe(seats)
 
   tag = ""
   if bgroup: tag = "_bgroup"
@@ -52,7 +52,7 @@ def load_data(state, method, seats = None, bgroup = False):
     ##  if c.edge:
     ##    print("Neighbors are ::", {n:w for n, w in zip(c.ps_n, c.ps_w)})
     ##    print("Edge perimeter is ::", c.edge_perim)
-    u.add_cell(pycl.cell(xi, int(c["pop"]), c.x, c.y, c.a, 
+    u.add_cell(pyc4.cell(xi, int(c["pop"]), c.x, c.y, c.a, 
                          {n:w for n, w in zip(c.ps_n, c.ps_w)},
                          c.edge_perim, c.split))
 
@@ -105,7 +105,7 @@ def circle_df(u, circle = False):
     return gpd.GeoDataFrame(geometry=[Polygon(u.hull(d, True)) for d in range(u.nregions)])
 
   return gpd.GeoDataFrame(geometry=[Point(c[0][0], c[0][1]).buffer(c[1] if math.isfinite(c[1]) and c[1] > 0 else 1)
-                                    for c in [u.get_circle_coords(r, pycl_circles[circle])
+                                    for c in [u.get_circle_coords(r, pyc4_circles[circle])
                                               for r in range(u.nregions)]])
 
 def point_df(u, point = True):
@@ -113,7 +113,7 @@ def point_df(u, point = True):
   if not point: return None
 
   return gpd.GeoDataFrame(geometry=[Point(c[0][0], c[0][1])
-                                    for c in [u.get_circle_coords(r, pycl_circles[point])
+                                    for c in [u.get_circle_coords(r, pyc4_circles[point])
                                     for r in range(u.nregions)]])
 
 
@@ -178,7 +178,7 @@ def main(state, seed, method, seats, ncycles, split_restart, power_restart, nite
           npiter = int(sinit[1]) if len(init) > 1 else 10000
           u.power_restart(seed + c * 1000, npiter, tol, verbose)
 
-        if split_restart: u.split_restart(seed+c, pycl_methods[method])
+        if split_restart: u.split_restart(seed+c, pyc4_methods[method])
 
     else: write_cycle = write
 
@@ -186,7 +186,7 @@ def main(state, seed, method, seats, ncycles, split_restart, power_restart, nite
 
       converged = False
       if i:
-        converged = u.oiterate(pycl_methods[method], niter = niter, llh_tol = tol, cut_tol = ctol, conv_iter = conv_iter, seed = seed, verbose = verbose)
+        converged = u.oiterate(pyc4_methods[method], niter = niter, llh_tol = tol, cut_tol = ctol, conv_iter = conv_iter, seed = seed, verbose = verbose)
       elif not print_init: continue
       
       if (converged or i == nloops) and u.get_best_solution(): u.load_best_solution()
@@ -199,10 +199,10 @@ def main(state, seed, method, seats, ncycles, split_restart, power_restart, nite
 
         # Score
         scores = [1] * u.nregions
-        if method in pycl_methods: scores = u.get_objectives(pycl_methods[method])
+        if method in pyc4_methods: scores = u.get_objectives(pyc4_methods[method])
 
         plot_map(gdf, "{}/{}/{}_{}.pdf".format(output, write_cycle, tag, s),
-                 label = pycl_formal[method] if i else init.capitalize(),
+                 label = pyc4_formal[method] if i else init.capitalize(),
                  crm = crm, hlt = u.border_cells(True if "ext" in borders else False) if borders else None, shading = s,
                  ring = ring_df(u, (ring or s == "density")),
                  circ = circle_df(u, circle), point = point_df(u, point), scores = scores, legend = bool(verbose))
@@ -215,12 +215,12 @@ def main(state, seed, method, seats, ncycles, split_restart, power_restart, nite
       if converged: break
 
     save_json("{}/json/{}.json".format(output, write_cycle.replace("/", "_")),
-              state, pycl_short[method], write_cycle, gdf, crm = u.cell_region_map(),
-              metrics = {pycl_short[k] : u.get_objectives(v) for k, v in pycl_methods.items()},
+              state, pyc4_short[method], write_cycle, gdf, crm = u.cell_region_map(),
+              metrics = {pyc4_short[k] : u.get_objectives(v) for k, v in pyc4_methods.items()},
               seats = u.nregions, bgroup = bgroup)
 
     save_geojson(gdf, "{}/{}/final.geojson".format(output, write_cycle), u.cell_region_map(), state,
-                 metrics = {pycl_short[k] : u.get_objectives(v) for k, v in pycl_methods.items()},
+                 metrics = {pyc4_short[k] : u.get_objectives(v) for k, v in pyc4_methods.items()},
                  bgroup = bgroup)
 
 
@@ -234,7 +234,7 @@ if __name__ == "__main__":
   parser.add_argument("-x", "--seed",      default = 0, type = int)
   parser.add_argument("-s", "--state",     default = "pa", type=str.lower, choices = us_states, help='state')
   parser.add_argument("-w", "--write",     default = "", type = str)
-  parser.add_argument("-m", "--method",    default = "dist_a", choices = pycl_formal, type = str)
+  parser.add_argument("-m", "--method",    default = "dist_a", choices = pyc4_formal, type = str)
   parser.add_argument("-b", "--bgroup",    action  = "store_true")
 
   # Looping parameters.
@@ -257,8 +257,8 @@ if __name__ == "__main__":
 
   # Plotting options.
   parser.add_argument("-r", "--ring",      action  = "store_true")
-  parser.add_argument("-o", "--circle",    default = "", choices = pycl_circles, type = str)
-  parser.add_argument("-p", "--point",     default = None, choices = pycl_circles, type = str)
+  parser.add_argument("-o", "--circle",    default = "", choices = pyc4_circles, type = str)
+  parser.add_argument("-p", "--point",     default = None, choices = pyc4_circles, type = str)
   parser.add_argument("--shading",         default = ["target"], nargs = "+")
   parser.add_argument("--no_plot",         action  = "store_true")
   parser.add_argument("--borders",         default = "", choices = ["ext", "int"])

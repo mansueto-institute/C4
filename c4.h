@@ -16,7 +16,7 @@
 // #include "boost/range/adaptor/reversed.hpp"
 
 #include <math.h>
-#include "cluscious/Miniball.hpp"
+#include "c4/Miniball.hpp"
 
 #include <iostream>
 #include <fstream>
@@ -44,13 +44,13 @@
 
 #define DEBUG_ME std::cerr << __FILE__ << "  " << __FUNCTION__ << "::" << __LINE__ << std::endl
 
-#include "cluscious/topology.h"
+#include "c4/topology.h"
 
 // #include "ehrenburg.hpp"
 
 
 
-namespace Cluscious {
+namespace c4 {
 
   using std::cout;
   using std::endl;
