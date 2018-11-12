@@ -42,6 +42,6 @@ elif [[ "$METHOD" == "INERTIA" ]]; then
 elif [[ "$METHOD" == "AXIS" ]]; then
   ./run.py -s ${s} -m axis_ratio   -t 0.01  -x${x} -n$N -c$C --conv_iter 500  --destrand_min 5 --destrand_max 50                                  --shading $shading 
 else
-  ./run.py -s ${s} -i power:100000 -t 0.01  -x${x} -l0 -c100 --power_restart --print_init -w ${s}/power/$(printf "s%03d" $x) -m power --shading $shading
+  ./run.py -s ${s} -i power:100000 -t 0.01  -x${x} -l0 -c100 --power_restart --print_init -w ${s}/power/$(printf "s%03d" $x) -m power --shading $shading 
 fi
 

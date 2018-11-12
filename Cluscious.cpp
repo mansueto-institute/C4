@@ -1034,8 +1034,8 @@ namespace Cluscious {
       cerr << "WARNING :: Region " << id << " :: get_node_ring reached max loop value. "
            << "Output size is " << ring.size() << " and ncells=" << ncells << "." << endl;
       cerr << "Starting cell was " << start_cell_id << " and start node was " << start_node->id << endl;
-      for (auto n : ring) cout << n->id << " ";
-      cout << endl;
+      // for (auto n : ring) cout << n->id << " ";
+      // cout << endl;
     }
 
     assert(ring.size());
