@@ -21,10 +21,10 @@ GEOS and GDAL can be very finnicky WRT OS, so this is on you.
   
 Then to build **C4**, it's just `python setup.py build_ext --inplace`.
 
-## Docker
+#### Docker
 For large-scale jobs, I run C4 as a Docker container on AWS.  You can check out the [Dockerfile](Dockerfile), as well as the [build](docker_build.sh) and [launch](aws_launch.sh) scripts I use for this.
 
-# Running C4
+## Running C4
 
 Setting up all of the shapefiles, topologies, and voting records from scratch is pretty involved, but these are all included in the package.  To run C4, I suggest checking out `run.py` which will show you its options (`-h`), or `run_iter.sh` where you can find the default settings for any of the methods.
 
@@ -46,7 +46,7 @@ export STATE=pa; export SEED=300; export METHOD=IPQ
 ```
 which will run Pennsylvania for seed 300 with the Isoperimeter quotient method.
 
-# Browsing Maps:
+## Browsing Maps:
 
 If you're more interested in the results, just head over to my webspace to play with the outputs in an interactive map:
 
