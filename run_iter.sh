@@ -28,6 +28,8 @@ elif [[ "$METHOD" == "RADII" ]]; then
 elif [[ "$METHOD" == "IPQ" ]]; then
   ./run.py -s ${s} -m polsby       -t 0.01  -x${x} -n$N -c$C --conv_iter 1000 --destrand_min 5 --destrand_max 50 --tabu_length 10 --allow_trades  --shading $shading 
 elif [[ "$METHOD" == "CIRCLES" ]]; then
+
+  # These both allow trades to move cells closer to the center...
   ./run.py -s ${s} -m ehrenburg    -t 0.005 -x${x} -n$N -c$C --conv_iter 500  --ctol 0.02 \
                                                                               --destrand_min 10 --destrand_max 50 --allow_trades --shading $shading -o lic -p lic -r -v 1
   ./run.py -s ${s} -m reock        -t 0.01  -x${x} -n$N -c$C --conv_iter 500  --destrand_min 5 --destrand_max 50 --allow_trades                   --shading $shading  -o scc -p scc

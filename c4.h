@@ -193,17 +193,23 @@ namespace c4 {
       // Get an edge pointer for an edge id.
       Edge* get_edge(int edge_id);
 
-      std::pair<Node*, Node*> get_cw_node(int reg);
+      // std::pair<Node*, Node*> get_cw_node(int reg);
 
       int region;
       int id, pop;
       double x, y;  
       double area;
+  
+      // IDs or pointers to neighbors.
       weight_map wm;
       neighbor_map nm;
 
+      // Fixed quantities.
       float edge_perim;
       bool  is_univ_edge;
+
+      // Census tracts are occasionally split -- 
+      //   this can really complicate the topologies.
       bool  is_split;
       bool  split_neighbor;
 
@@ -211,8 +217,11 @@ namespace c4 {
 
       std::map<int, Cell*> dijkstra_step;
 
+      // Cells can be removed from the graph
       std::vector<int> enclaves_and_islands;
 
+      // This is the topology of the PERIMETERS, 
+      //   rather than the connectivity between cells (tracts).
       std::vector<Edge> edges;
       std::set<Node*> nodes;
 
@@ -404,6 +413,8 @@ namespace c4 {
 
       bool loaded_topo;
       bgraph dijkstra_graph;
+
+      // Convert adjacency matrix and edge node networks to pointers.
       void adjacency_to_pointers();
       void node_ids_to_pointers();
 
