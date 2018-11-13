@@ -7,6 +7,8 @@ The goal is to perform fast, iterative, contiguity-preserving optimization
 This includes:
 * Isoperimeter Quotient: e.g., [Polsby & Popper](https://digitalcommons.law.yale.edu/ylpr/vol9/iss2/6)
 * Moments of Inertia: [Weaver & Hess](10.2307/794769)
+* Largest-Inscribed Circle: [Ehrenburg](https://babel.hathitrust.org/cgi/pt?id=mdp.39015076673584;view=1up;seq=41)
+* Smallest Circumscribing Circle: [Reock](10.2307/2109043)
 * Convex Hull Area or Population, e.g., [Hofeller & Grofman](http://www.socsci.uci.edu/~bgrofman/B48-Comparing-the-Compactness.pdf)
 * Various Radii: e.g., [Frolov 1975, for a good historical review](http://dx.doi.org/10.1080/00385417.1975.10640104)
 * Exchange: [Angel et al](http://dx.doi.org/10.1111/j.1541-0064.2009.00304.x)
