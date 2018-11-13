@@ -1,42 +1,18 @@
-# cluscious
+# C4: Contiguity-Constrained Clustering in C++
 
-Cluscious is a collection of three c++ classes exposed to python through cython.
+C4 is a collection of three c++ classes exposed to python through cython.
 The goal is to perform fast, iterative, contiguity-preserving optimization
   of many of the compactness objective functions found in the gerrymandering literature.
 
+## Build Instructions
 
-
-To build:
-
-Some parts need armadillo (which needs OpenBlas):
-
-OpenBLAS:
-download https://github.com/xianyi/OpenBLAS/zipball/master
-Then 
-`make && sudo make install`
-
-(Yes, it's that easy!?)
-
-Armadillo
-Linux -- trivial:
-sudo apt-get install libarmadillo-dev libarmadillo6 libarmadillo6-dbgsym
-
-Mac -- Download
-http://arma.sourceforge.net/download.html
-
-```
-cmake . 
-make 
-sudo make install
-
-g++ -I/usr/local/include/ example1.cpp -o example1 -O2 -larmadillo
-```
-
-Then for Cluscious, it's:
-
-```
-python setup.py build_ext --inplace
-```
+Some components require Armadillo, which in turn requires OpenBlas:
+* OpenBLAS: First [download](https://github.com/xianyi/OpenBLAS/zipball/master) it, then `make && sudo make install`.  (Yes, it's that easy!)
+* Armadillo:
+  * Linux: `sudo apt-get install libarmadillo-dev libarmadillo6 libarmadillo6-dbgsym`
+  * Mac [download](http://arma.sourceforge.net/download.html) then `cmake . && make && sudo make install`
+  
+Then to build **C4**, it's just `python setup.py build_ext --inplace`.
 
 Then to test, try
 ```
