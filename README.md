@@ -3,8 +3,17 @@
 C4 is a collection of three c++ classes exposed to python through cython.
 The goal is to perform fast, iterative, contiguity-preserving optimization
   of many of the compactness objective functions found in the gerrymandering literature.
+
 This includes:
-* 
+* Isoperimeter Quotient: e.g., [Polsby & Popper](https://digitalcommons.law.yale.edu/ylpr/vol9/iss2/6)
+* Moments of Inertia: [Weaver & Hess](10.2307/794769)
+* Convex Hull Area or Population, e.g., [Hofeller & Grofman](http://www.socsci.uci.edu/~bgrofman/B48-Comparing-the-Compactness.pdf)
+* Various Radii: e.g., [Frolov 1975, for a good historical review](http://dx.doi.org/10.1080/00385417.1975.10640104)
+* Exchange: [Angel et al](http://dx.doi.org/10.1111/j.1541-0064.2009.00304.x)
+* Power Diagrams, e.g., [Fryer & Holden](http://dx.doi.org/10.1086/661511)
+* Path Fraction ("Bizareness"): [Chambers & Miller](http://dx.doi.org/10.1561/100.00009022)
+* Distance assignment: [Chen & Rodden](http://dx.doi.org/10.1561/100.00012033)
+* Split-line: [Forrest](http://dx.doi.org/10.1177/000276426400800407)
 
 ## Build Instructions
 
