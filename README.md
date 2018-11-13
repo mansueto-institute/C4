@@ -1,4 +1,4 @@
-# <img src="img/c4_logo.png" width=40px> C4: Contiguity-Constrained Clustering in C++
+# <img src="img/c4_logo.png" width=25px> C4: Contiguity-Constrained Clustering in C++
 
 C4 is a collection of three c++ classes exposed to python through cython.
 The goal is to perform fast, iterative, contiguity-preserving optimization
