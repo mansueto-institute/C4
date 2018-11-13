@@ -10,7 +10,7 @@ RUN apt-get install -y python3-gdal gdal-bin
 RUN pip3 install cython matplotlib fiona pysal geopandas psycopg2
 
 # https://github.com/settings/tokens/
-RUN mkdir cluscious && cd cluscious && git init && git pull https://MY_PERSONAL_TOKEN@github.com/JamesSaxon/cluscious.git && python3 setup.py build_ext --inplace
+RUN mkdir C4 && cd C4 && git init && git pull https://MY_PERSONAL_TOKEN@github.com/JamesSaxon/C4.git && python3 setup.py build_ext --inplace
 
 RUN touch ~/.netrc
 
@@ -18,7 +18,7 @@ ENV AWS_DEFAULT_REGION=us-east-1 \
     AWS_ACCESS_KEY_ID=MY_AWS_ACCESS_KEY_ID \
     AWS_SECRET_ACCESS_KEY=MY_AWS_SECRET_ACCESS_KEY
 
-CMD cd cluscious && \
+CMD cd C4 && \
     echo RUNNING :: $STATE $SEED $METHOD && \
     ./run_iter.sh 2>&1 | tee ${STATE}-${SEED}-${METHOD}.out && \
     zip -r $(printf "%s_s%03d%s.zip" $STATE $SEED $([ "$METHOD" != "" ] && echo _$METHOD)) \
