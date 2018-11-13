@@ -45,3 +45,10 @@ Aternatively, you can just accept my defaults, and do
 export STATE=pa; export SEED=300; export METHOD=IPQ
 ```
 which will run Pennsylvania for seed 300 with the Isoperimeter quotient method.
+
+# Browsing Maps:
+
+If you're more interested in the results, just head over to my webspace to play with the outputs in an interactive map:
+
+http://saxon.harris.uchicago.edu/redistricting_map/
+
