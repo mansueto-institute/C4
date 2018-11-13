@@ -11,7 +11,7 @@
 //
 // The above copyright notice and this permission notice shall be included in all
 // copies or substantial portions of the Software.  Academic papers or commercial
-// using this software must clearly cite this work.
+// products using this software must clearly cite this work.
 //
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
@@ -231,19 +231,15 @@ namespace c4 {
 
     int edge_id;
     if (!node->set_edge(start_edge_id)) cout << "Cell " << id << " doesn't even have " << start_edge_id << "!!" << endl;
-    // cout << "cell " << id << "(R=" << region << "), " << (CW ? "adding to" : "removing from") << " region_id=" << region_id << endl;
-    // cout << "We're starting at edge " << start_edge_id << " :: follows :: ";
     for (int ni = 0; ni < node->size(); ni++) {
 
       if (CW) edge_id = node->next();
       else    edge_id = node->prev();
-      // cout << edge_id << " ";
 
       int border = (region == region_id) && has_edge(edge_id);
       if (border) {
         next_cell = this;
         next_edge = get_edge(edge_id);
-        // cout << "C";
       }
 
       for (auto& nei : nm) {
@@ -253,17 +249,12 @@ namespace c4 {
           next_cell = nei.first;
           next_edge = nei.first->get_edge(edge_id);
           border++;
-          // cout << "N";
         }
       }
-      // cout << "/ ";
 
-      if (border == 1) {
-        // cout << endl;
-        return true;
-      }
+      if (border == 1) return true;
+
     }
-    // cout << endl;
 
     // Should never arrive here.
     cout << "Cell=" << id << "  region=" << region << ", edge=" << start_edge_id << endl;
@@ -287,19 +278,12 @@ namespace c4 {
   }
 
 
-  // Overloading...
+  // Overloading.... if the neighbor cells belong to more than one
+  // connected component, then this is a cut vertex.
   bool Cell::neighbors_connected(bool QUEEN = false, bool FAST = false) {
 
     std::vector<std::unordered_set<Cell*> > graphs;
     int nsets = neighbor_sets(graphs, false, QUEEN, FAST);
-    // if (nsets != 1) {
-    //   cout << "Called for " << id << " (r=" << region << ")" << endl;
-    //   for (auto g : graphs) {
-    //     cout << "  Graph : ";
-    //     for (auto ci : g) cout << ci->id << "(" << ci->region << ") ";
-    //     cout << endl;
-    //   }
-    // }
 
     return nsets == 1;
 
@@ -325,6 +309,7 @@ namespace c4 {
   }
 
   // This is quite similar to "connect graph."
+  // Count the connected components among the neighbors.
   int Cell::neighbor_sets(std::vector<std::unordered_set<Cell*> >& graphs,
                           unsigned int max_merge, bool QUEEN, bool FAST) {
 
@@ -379,34 +364,27 @@ namespace c4 {
 
     // If the cell's neighbors are connected, we're done.
     if (graphs.size() <= 1) return 1;
-    else if (FAST) return 2;
+    else if (FAST) return 2; // Ignores QUEEN etc.
 
     // Otherwise, expand search.
+    // We will have to expand out each of the disjoint star graphs,
+    // in the "hopes" that these expanding graphs will eventually overlap.
 
     // Create a set of cells "to add", for each set.
     std::vector<std::unordered_set<Cell*> > to_add;
 
     // Add the neighbors of the current sets to each list.
     for (auto g : graphs) {
-      to_add.push_back(std::unordered_set<Cell*>());
+      to_add.push_back(std::unordered_set<Cell*>()); // start with an empty set...
+      // Consider the neighbors of all does in the graph. If it is ...
       for (auto c : g) for (auto n : c->nm) if (QUEEN || n.second > 0) { // ROOK
         if (n.first->region == region &&   // in the region
             g.find(n.first) == g.end() &&  // not yet in graph, and 
             n.first != this) {             // not the cell in question.
-          to_add.back().insert(n.first);
+          to_add.back().insert(n.first);   // then we will have to add work out from this node.
         }
       }
     }
-
-    // cout << " >> We've now expanded the search: c" << id << " >> " << endl;
-
-    // for (int gidx = 0; gidx < int(graphs.size()); gidx++) {
-    //   cout << "    Graph contains [[ ";
-    //   for (auto c : graphs[gidx]) cout << c->id << " ";
-    //   cout << "]]  +  [[ ";
-    //   for (auto c : to_add[gidx]) cout << c->id << " ";
-    //   cout << "]]" << endl;
-    // }
 
     std::unordered_set<Cell*> next;
 
@@ -423,19 +401,28 @@ namespace c4 {
             (!max_merge && std::all_of(to_add.begin(), to_add.end(), uo_set_nempty)))) {
 
 
+
+      // For each graph, check if a cell to_add in another graph
+      //  is already in this graph or its list to add.
+      // If there are, and there are only two graphs, then we're done.
+      // If there are, and there are more than two graphs,
+      //   then merge the two graphs (graphs list and to_add list), and continue.
       for (int gidx = 0; gidx < int(graphs.size()); gidx++) {
 
         for (int giidx = int(graphs.size())-1; giidx > gidx; giidx--) {
 
           for (auto c : to_add[giidx]) {
+
+            // Cell from gii is in gi.  Merge or return.
             if (to_add[gidx].find(c) != to_add[gidx].end() ||
                 graphs[gidx].find(c) != graphs[gidx].end()) {
 
+              // Only two graphs, and they merge.  We're done.
               if (graphs.size() == 2) {
-                // cout << "    cid=" << c->id << "  ... could return at this point..." << endl << endl;
                 return 1;
               }
 
+              // Merge lists...
               to_add[gidx].insert(to_add[giidx].begin(), to_add[giidx].end());
               graphs[gidx].insert(graphs[giidx].begin(), to_add[giidx].end());
               
@@ -451,20 +438,22 @@ namespace c4 {
 
       }
 
+      // Add to_add to the graph itself, and make neighbors of to_add the next round's to_add.
       for (int gidx = 0; gidx < int(graphs.size()); gidx++) {
 
         graphs[gidx].insert(to_add[gidx].begin(), to_add[gidx].end());
 
         next.clear();
         for (auto c : to_add[gidx]) {
+
+          // If it's a neighbor of to_add...
           for (auto n : c->nm) if (QUEEN || n.second > 0) { // ROOK
-            // cout << "nid=" << n.first->id << "  r" << n.first->region << " v. " << region << " :: ";
+
+            // in this region and not already in the graph, then add it to the next round.
             if (n.first->region == region && c != this &&
                 graphs[gidx].find(n.first) == graphs[gidx].end()) {
-              // cout << " (added)";
               next.insert(n.first);
             }
-            // cout << endl;
           }
         }
         to_add[gidx].clear();
@@ -472,20 +461,7 @@ namespace c4 {
 
       }
 
-      // cout << "    >>>>>>>>>>>>>>>>    " << endl;
-      // for (int gidx = 0; gidx < int(graphs.size()); gidx++) {
-      //   cout << "    Graph contains [[ ";
-      //   for (auto c : graphs[gidx]) cout << c->id << " ";
-      //   cout << "]]  +  [[ ";
-      //   for (auto c : to_add[gidx]) cout << c->id << " ";
-      //   cout << "]]" << endl;
-      // }
-
     }
-
-    // cout << "    *****************" << endl << "    ***  RETURNING " << graphs.size() << endl << endl;
-
-    // cout << endl;
 
     return graphs.size();
 
@@ -494,8 +470,11 @@ namespace c4 {
   void Cell::disconnect() {
 
     for (auto nei : nm) {
+
+      // Remove this cell from all neighbors' weight map.
       nei.first->wm.erase(id);
 
+      // Now cycle over the neighbor's _neighor_map_ to remove the pointer as well.
       int nm_idx = 0;
       for (auto nnei : nei.first->nm) {
         if (nnei.first == this) {
@@ -520,11 +499,16 @@ namespace c4 {
     // Including the area screws up some 
     // of the calculations with area normalizations.
     // area += m->area;
+    
+    // Merged cell population "given" to host.
     pop  += m->pop;
 
+    // If this cell had any enclaves or islands already,
+    // these are forwarded to the "host."
     for (auto ei : m->enclaves_and_islands)
       enclaves_and_islands.push_back(ei);
 
+    // And this cell in it's turn, is a "ward" of the host.
     enclaves_and_islands.push_back(m->id);
 
   }
@@ -931,7 +915,7 @@ namespace c4 {
 
     // If a starting cell/edge is not provided, find a random one.
     // if we happen to choose a cell with only a corner connection
-    // to the outside, the external ege will fail; hence we loop.
+    // to the outside, the external edge will fail; hence we loop.
     for (auto ib = int_borders.begin();
          ib != int_borders.end() && this_edge_idx < 0; ++ib) {
       curr_cell = *ib;
@@ -1327,7 +1311,7 @@ namespace c4 {
 
   Universe::Universe() {}
   Universe::Universe(int n) 
-    : pop(0), rcount(0), ncells(0), nregions(n), total_iterations(0), loaded_topo(false), 
+    : pop(0), ncells(0), nregions(n), total_iterations(0), loaded_topo(false), 
     best_solution_val(0), best_tolerance_val(1), iterations_since_improvment(0), 
     ALPHA(4), RANDOM(false), TRADE(true), TABU_LENGTH(0),
     DESTRAND_MIN(2), DESTRAND_MAX(15)
@@ -2921,7 +2905,6 @@ namespace c4 {
         // Move in an order that preserves contiguity.
         std::unordered_set<int> nei_reg = c->neighbor_regions(level);
         if (nei_reg.size()) {
-          // if (level) cout << c->id << " " << c->region << "->" << *nei_reg.begin() << endl;
 
           regions[c->region]->remove_cell(c); 
           regions[*nei_reg.begin()]->add_cell(c);
@@ -2934,31 +2917,8 @@ namespace c4 {
 
       if (!removed) {
         if (!level) {
-
-          // if (bak.size()) cout << "Removing strand of size " << bak.size() << " consisting of :: ";
-          // for (auto s : bak) cout << s->id << " (r" << s->region << ")  ";
-          // if (bak.size()) cout << endl;
-    
-          // cout << "switching to queen contiguity." << endl;
-          // cout << " we still have left " << endl;
-          // for (auto c : strand) {
-          //   cout << "cell " << c->id << " (r" << c->region << ")  connected=" << c->neighbors_connected(level)
-          //        << "  n neighbors regions=" << c->neighbor_regions(level).size();
-          //   cout << " ::";
-          //   for (auto nr : c->neighbor_regions(level)) cout << " " << nr;
-          //   cout << " :: ";
-          //   for (auto n : c->nm) cout << " " << n.first->id << "(" << n.first->region << ")  ";
-          //   cout << endl;
-          // }
           level = 1;
         } else if (level == 1) {
-          // cout << "disregarding contiguity...  level 2" << endl;
-          // cout << " we still have left " << endl;
-          // for (auto c : strand) {
-          //   cout << c->id << "  connected=" << c->neighbors_connected(level) << "  regions=" << c->neighbor_regions(level).size() << "   ::  ";
-          //   for (auto n : c->nm) cout << " " << n.first->id << "(" << n.first->region << ")  ";
-          //   cout << endl;
-          // }
           level = 2;
         } else {
           cout << "Could not complete strand removal :: we still have left " << endl;
