@@ -53,7 +53,7 @@ This means use the hull population method.  Run up to 10000 iterations total, an
 
 Aternatively, you can just accept my defaults, and do
 ```
-export STATE=pa; export SEED=300; export METHOD=IPQ
+export STATE=pa; export SEED=300; export METHOD=IPQ; ./run_iter.sh
 ```
 which will run Pennsylvania for seed 300 with the Isoperimeter quotient method.
 
