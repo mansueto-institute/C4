@@ -11,7 +11,7 @@
 //
 // The above copyright notice and this permission notice shall be included in all
 // copies or substantial portions of the Software.  Academic papers or commercial
-// using this software must clearly cite this work.
+// products using this software must clearly cite this work.
 //
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
@@ -21,10 +21,10 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "Cluscious.h" 
+#include "c4.h" 
 
 
-namespace Cluscious {
+namespace c4 {
 
   static std::map<ObjectiveMethod, RadiusType> obj_radius = {{DISTANCE_A, EQUAL_AREA}, {DISTANCE_P, EQUAL_AREA_POP},
                                                              {INERTIA_A, EQUAL_AREA}, {INERTIA_P, EQUAL_AREA_POP}, 
@@ -51,6 +51,7 @@ namespace Cluscious {
   }
 
 
+  // Adjacency map to pointers.
   void Cell::adjacency_to_pointers(std::vector<Cell*>& univ_cells) {
 
     weight_map::iterator wit;
@@ -68,13 +69,15 @@ namespace Cluscious {
     }
   }
 
+  // Add an edge -- a perimeter component -- 
+  //   only used for some algos.
   void Cell::add_edge(int edge_id, int nodea, int nodeb) {
 
     edges.push_back(Edge(edge_id, nodea, nodeb));
 
   }
-
-
+  
+  // Nodes -- corners between cells -- IDs converted to pointers.
   void Cell::node_ids_to_pointers(std::vector<Node*>& univ_nodes) {
 
     for (auto& n : univ_nodes) {
@@ -84,6 +87,8 @@ namespace Cluscious {
       }
     }
 
+    // Need to know if neighbor is split, 
+    //    for get_node_ring.
     if (is_split) {
       for (auto& n : nm) {
         n.first->split_neighbor = true;
@@ -91,6 +96,7 @@ namespace Cluscious {
     }
   }
 
+  // Index from id
   int Cell::get_edge_idx(int id) {
     
     int eidx = -1;
@@ -144,67 +150,69 @@ namespace Cluscious {
 
   }
 
-  std::pair<Node*, Node*> Cell::get_cw_node(int reg) {
 
-    std::pair<Node*, Node*> rval(0, 0);
-    cout << "On get_cw_node for cell " << id << " (x,y)=(" << x << "," << y << ") in region=" << reg << ")" << endl;
+  ///   std::pair<Node*, Node*> Cell::get_cw_node(int reg) {
 
-    // Do the last one first, to deal with 
-    // the first transition.
-    bool na_dom_nei, nb_dom_nei;
-    for (auto& e : edges) {
-      na_dom_nei = nb_dom_nei = false;
-      for (auto na_e : e.na->edges) {
-        for (auto n : nm) {
-          if (n.first->region == reg &&
-              n.first->has_edge(na_e)) {
+  ///     std::pair<Node*, Node*> rval(0, 0);
+  ///     cout << "On get_cw_node for cell " << id << " (x,y)=(" << x << "," << y << ") in region=" << reg << ")" << endl;
 
-            na_dom_nei = true;
-            break;
-          }
-        }
-        if (na_dom_nei) break;
-      }
+  ///     // Do the last one first, to deal with 
+  ///     // the first transition.
+  ///     bool na_dom_nei, nb_dom_nei;
+  ///     for (auto& e : edges) {
+  ///       na_dom_nei = nb_dom_nei = false;
+  ///       for (auto na_e : e.na->edges) {
+  ///         for (auto n : nm) {
+  ///           if (n.first->region == reg &&
+  ///               n.first->has_edge(na_e)) {
 
-      for (auto nb_e : e.nb->edges) {
-        for (auto n : nm) {
-          if (n.first->region == reg &&
-              n.first->has_edge(nb_e)) {
-            nb_dom_nei = true;
-            break;
-          }
-        }
-        if (nb_dom_nei) break;
-      }
+  ///             na_dom_nei = true;
+  ///             break;
+  ///           }
+  ///         }
+  ///         if (na_dom_nei) break;
+  ///       }
 
-      // Is THIS edge in the region?
-      // Must do false -> true, because univ. edges are not in the region
-      // but won't give any contradiction -- there is no cell OUT of region on the edge.
-      bool edge_in_region = false;
-      for (auto n : nm) {
-        if (n.first->region == reg &&
-            n.first->has_edge(e.id)) {
-          edge_in_region = true;
-        }
-      }
+  ///       for (auto nb_e : e.nb->edges) {
+  ///         for (auto n : nm) {
+  ///           if (n.first->region == reg &&
+  ///               n.first->has_edge(nb_e)) {
+  ///             nb_dom_nei = true;
+  ///             break;
+  ///           }
+  ///         }
+  ///         if (nb_dom_nei) break;
+  ///       }
 
-      cout << "  Edge id=" << e.id << "  inreg=" << edge_in_region << "  na_dom_nei=" << na_dom_nei << "  nb_dom_nei=" << nb_dom_nei << endl;
-      if ( na_dom_nei && !nb_dom_nei) rval.first  = e.na;
-      if (!na_dom_nei &&  nb_dom_nei) rval.second = e.nb;
+  ///       // Is THIS edge in the region?
+  ///       // Must do false -> true, because univ. edges are not in the region
+  ///       // but won't give any contradiction -- there is no cell OUT of region on the edge.
+  ///       bool edge_in_region = false;
+  ///       for (auto n : nm) {
+  ///         if (n.first->region == reg &&
+  ///             n.first->has_edge(e.id)) {
+  ///           edge_in_region = true;
+  ///         }
+  ///       }
 
-      if (!edge_in_region && na_dom_nei && nb_dom_nei)
-        rval.first = e.na; rval.second = e.nb;
+  ///       cout << "  Edge id=" << e.id << "  inreg=" << edge_in_region << "  na_dom_nei=" << na_dom_nei << "  nb_dom_nei=" << nb_dom_nei << endl;
+  ///       if ( na_dom_nei && !nb_dom_nei) rval.first  = e.na;
+  ///       if (!na_dom_nei &&  nb_dom_nei) rval.second = e.nb;
 
-      // if (rval.first && rval.second) break;
-    }
+  ///       if (!edge_in_region && na_dom_nei && nb_dom_nei)
+  ///         rval.first = e.na; rval.second = e.nb;
 
-    // if (!rval.first || !rval.second) 
-    //   throw std::runtime_error(std::string("get_cw_node() got an empty start or end!"));
+  ///       // if (rval.first && rval.second) break;
+  ///     }
 
-    return rval;
+  ///     // if (!rval.first || !rval.second) 
+  ///     //   throw std::runtime_error(std::string("get_cw_node() got an empty start or end!"));
 
-  }
+  ///     return rval;
 
+  ///   }
+
+  // If cell has edge, by ID.
   bool Cell::has_edge(int edge_id) {
 
     for (auto e : edges) {
@@ -214,6 +222,7 @@ namespace Cluscious {
     return false;
   }
 
+  // Edge pointer from ID (if exists)
   Edge* Cell::get_edge(int edge_id) {
 
     for (auto e = edges.begin(); e != edges.end(); e++) {
@@ -223,6 +232,7 @@ namespace Cluscious {
     return 0;
   }
 
+  // Circulate around a node corner, to next edge on the perim.
   bool Cell::next_edge_in_region(Node* node, int start_edge_id,
                                  Cell*& next_cell, Edge*& next_edge,
                                  bool CW = true, int region_id = -1) {
@@ -231,19 +241,15 @@ namespace Cluscious {
 
     int edge_id;
     if (!node->set_edge(start_edge_id)) cout << "Cell " << id << " doesn't even have " << start_edge_id << "!!" << endl;
-    // cout << "cell " << id << "(R=" << region << "), " << (CW ? "adding to" : "removing from") << " region_id=" << region_id << endl;
-    // cout << "We're starting at edge " << start_edge_id << " :: follows :: ";
     for (int ni = 0; ni < node->size(); ni++) {
 
       if (CW) edge_id = node->next();
       else    edge_id = node->prev();
-      // cout << edge_id << " ";
 
       int border = (region == region_id) && has_edge(edge_id);
       if (border) {
         next_cell = this;
         next_edge = get_edge(edge_id);
-        // cout << "C";
       }
 
       for (auto& nei : nm) {
@@ -253,17 +259,12 @@ namespace Cluscious {
           next_cell = nei.first;
           next_edge = nei.first->get_edge(edge_id);
           border++;
-          // cout << "N";
         }
       }
-      // cout << "/ ";
 
-      if (border == 1) {
-        // cout << endl;
-        return true;
-      }
+      if (border == 1) return true;
+
     }
-    // cout << endl;
 
     // Should never arrive here.
     cout << "Cell=" << id << "  region=" << region << ", edge=" << start_edge_id << endl;
@@ -273,6 +274,7 @@ namespace Cluscious {
 
   }
 
+  // Get a set of the foreign regions.
   std::unordered_set<int> Cell::neighbor_regions(bool QUEEN) {
 
     std::unordered_set<int> rval;
@@ -287,24 +289,19 @@ namespace Cluscious {
   }
 
 
-  // Overloading...
+  // Overloading.... if the neighbor cells belong to more than one
+  // connected component, then this is a cut vertex.
   bool Cell::neighbors_connected(bool QUEEN = false, bool FAST = false) {
 
     std::vector<std::unordered_set<Cell*> > graphs;
     int nsets = neighbor_sets(graphs, false, QUEEN, FAST);
-    // if (nsets != 1) {
-    //   cout << "Called for " << id << " (r=" << region << ")" << endl;
-    //   for (auto g : graphs) {
-    //     cout << "  Graph : ";
-    //     for (auto ci : g) cout << ci->id << "(" << ci->region << ") ";
-    //     cout << endl;
-    //   }
-    // }
 
     return nsets == 1;
 
   }
 
+  // Get neighboring strands -- cut-able components, 
+  //   if there's one with size less than max_merge.
   int Cell::neighbor_strands(std::unordered_set<Cell*>& strand, // int dest_reg,
                              unsigned int max_merge = 0, bool QUEEN = false) {
 
@@ -325,6 +322,9 @@ namespace Cluscious {
   }
 
   // This is quite similar to "connect graph."
+  // Count the connected components among the neighbors.
+  // It is possibly the most important function in this code, 
+  //   since it's what makes it run fast.
   int Cell::neighbor_sets(std::vector<std::unordered_set<Cell*> >& graphs,
                           unsigned int max_merge, bool QUEEN, bool FAST) {
 
@@ -379,34 +379,27 @@ namespace Cluscious {
 
     // If the cell's neighbors are connected, we're done.
     if (graphs.size() <= 1) return 1;
-    else if (FAST) return 2;
+    else if (FAST) return 2; // Ignores QUEEN etc.
 
     // Otherwise, expand search.
+    // We will have to expand out each of the disjoint star graphs,
+    // in the "hopes" that these expanding graphs will eventually overlap.
 
     // Create a set of cells "to add", for each set.
     std::vector<std::unordered_set<Cell*> > to_add;
 
     // Add the neighbors of the current sets to each list.
     for (auto g : graphs) {
-      to_add.push_back(std::unordered_set<Cell*>());
+      to_add.push_back(std::unordered_set<Cell*>()); // start with an empty set...
+      // Consider the neighbors of all does in the graph. If it is ...
       for (auto c : g) for (auto n : c->nm) if (QUEEN || n.second > 0) { // ROOK
         if (n.first->region == region &&   // in the region
             g.find(n.first) == g.end() &&  // not yet in graph, and 
             n.first != this) {             // not the cell in question.
-          to_add.back().insert(n.first);
+          to_add.back().insert(n.first);   // then we will have to add work out from this node.
         }
       }
     }
-
-    // cout << " >> We've now expanded the search: c" << id << " >> " << endl;
-
-    // for (int gidx = 0; gidx < int(graphs.size()); gidx++) {
-    //   cout << "    Graph contains [[ ";
-    //   for (auto c : graphs[gidx]) cout << c->id << " ";
-    //   cout << "]]  +  [[ ";
-    //   for (auto c : to_add[gidx]) cout << c->id << " ";
-    //   cout << "]]" << endl;
-    // }
 
     std::unordered_set<Cell*> next;
 
@@ -423,19 +416,28 @@ namespace Cluscious {
             (!max_merge && std::all_of(to_add.begin(), to_add.end(), uo_set_nempty)))) {
 
 
+
+      // For each graph, check if a cell to_add in another graph
+      //  is already in this graph or its list to add.
+      // If there are, and there are only two graphs, then we're done.
+      // If there are, and there are more than two graphs,
+      //   then merge the two graphs (graphs list and to_add list), and continue.
       for (int gidx = 0; gidx < int(graphs.size()); gidx++) {
 
         for (int giidx = int(graphs.size())-1; giidx > gidx; giidx--) {
 
           for (auto c : to_add[giidx]) {
+
+            // Cell from gii is in gi.  Merge or return.
             if (to_add[gidx].find(c) != to_add[gidx].end() ||
                 graphs[gidx].find(c) != graphs[gidx].end()) {
 
+              // Only two graphs, and they merge.  We're done.
               if (graphs.size() == 2) {
-                // cout << "    cid=" << c->id << "  ... could return at this point..." << endl << endl;
                 return 1;
               }
 
+              // Merge lists...
               to_add[gidx].insert(to_add[giidx].begin(), to_add[giidx].end());
               graphs[gidx].insert(graphs[giidx].begin(), to_add[giidx].end());
               
@@ -451,20 +453,22 @@ namespace Cluscious {
 
       }
 
+      // Add to_add to the graph itself, and make neighbors of to_add the next round's to_add.
       for (int gidx = 0; gidx < int(graphs.size()); gidx++) {
 
         graphs[gidx].insert(to_add[gidx].begin(), to_add[gidx].end());
 
         next.clear();
         for (auto c : to_add[gidx]) {
+
+          // If it's a neighbor of to_add...
           for (auto n : c->nm) if (QUEEN || n.second > 0) { // ROOK
-            // cout << "nid=" << n.first->id << "  r" << n.first->region << " v. " << region << " :: ";
+
+            // in this region and not already in the graph, then add it to the next round.
             if (n.first->region == region && c != this &&
                 graphs[gidx].find(n.first) == graphs[gidx].end()) {
-              // cout << " (added)";
               next.insert(n.first);
             }
-            // cout << endl;
           }
         }
         to_add[gidx].clear();
@@ -472,30 +476,20 @@ namespace Cluscious {
 
       }
 
-      // cout << "    >>>>>>>>>>>>>>>>    " << endl;
-      // for (int gidx = 0; gidx < int(graphs.size()); gidx++) {
-      //   cout << "    Graph contains [[ ";
-      //   for (auto c : graphs[gidx]) cout << c->id << " ";
-      //   cout << "]]  +  [[ ";
-      //   for (auto c : to_add[gidx]) cout << c->id << " ";
-      //   cout << "]]" << endl;
-      // }
-
     }
-
-    // cout << "    *****************" << endl << "    ***  RETURNING " << graphs.size() << endl << endl;
-
-    // cout << endl;
 
     return graphs.size();
 
   }
 
-  void Cell::disconnect() {
+  void Cell::disconnect() { // Dissociate the cell from neighbors.
 
     for (auto nei : nm) {
+
+      // Remove this cell from all neighbors' weight map.
       nei.first->wm.erase(id);
 
+      // Now cycle over the neighbor's _neighor_map_ to remove the pointer as well.
       int nm_idx = 0;
       for (auto nnei : nei.first->nm) {
         if (nnei.first == this) {
@@ -509,7 +503,7 @@ namespace Cluscious {
 
   }
 
-  void Cell::merge(Cell* m) {
+  void Cell::merge(Cell* m) { // Subsume a cell in another.
 
     // Do we want to move the coords?  I think not.
     // x = (x * area + m->x * m->area)/(area + m->area);
@@ -520,11 +514,16 @@ namespace Cluscious {
     // Including the area screws up some 
     // of the calculations with area normalizations.
     // area += m->area;
+    
+    // Merged cell population "given" to host.
     pop  += m->pop;
 
+    // If this cell had any enclaves or islands already,
+    // these are forwarded to the "host."
     for (auto ei : m->enclaves_and_islands)
       enclaves_and_islands.push_back(ei);
 
+    // And this cell in it's turn, is a "ward" of the host.
     enclaves_and_islands.push_back(m->id);
 
   }
@@ -557,25 +556,33 @@ namespace Cluscious {
   }
 
 
+  // This updates all of the internal values -- all of the objective functions -- 
+  //   for the addition  of one cell.
   void Region::add_cell(Cell* c, bool UPDATE_CTR = true) {
 
     ncells++;
     c->region = id;
     cells.insert(c);
 
+    // Maintain the list of internal and external neighbors.
     add_cell_int_ext_neighbors(c);
 
+    // If the topology is loaded, make the ring.
     if (has_topo && node_ring.size() && ncells > 2) make_ring();
 
+    // Update the moments of inertia.
     Ia = inertia_parallel_axis(Ia, xctr,  yctr,  area, c->x, c->y, c->area);
     Ip = inertia_parallel_axis(Ip, xpctr, ypctr, pop,  c->x, c->y, c->pop);
 
+    // Update the area and population centers.
     if (UPDATE_CTR) {
       xctr  = (xctr  * area + c->x * c->area)/(area + c->area);
       yctr  = (yctr  * area + c->y * c->area)/(area + c->area);
       xpctr = (xpctr * pop  + c->x * c->pop )/(pop  + c->pop );
       ypctr = (ypctr * pop  + c->y * c->pop )/(pop  + c->pop );
 
+      // as well as the centers for the Smallest Circumscribing
+      //     and largest inscribed circles.
       update_scc(c, 0, true); // add cell, do update.
       if (has_topo && node_ring.size()) update_lic(c, 0, true);
       
@@ -589,6 +596,7 @@ namespace Cluscious {
     // bgeo::union_(poly, c->poly, poly);
     bgeo::append(mpt, c->pt);
 
+    // Convex Hull
     if (!bgeo::within(c->pt, ch_poly)) {
       bgeo::clear(ch_poly);
       bgeo::convex_hull(mpt, ch_poly);
@@ -597,6 +605,7 @@ namespace Cluscious {
 
   }
 
+  // Parallel axis theorem for fast moment of inertia update.
   double Region::inertia_parallel_axis(double I0, double x0, double y0, double w0, double xc, double yc, double wc) {
 
     if (wc == 0) return I0; // avoid case of w0 = wc = 0...
@@ -611,10 +620,12 @@ namespace Cluscious {
     double d0p2 = (xp - x0) * (xp - x0) + (yp - y0) * (yp - y0);
     double dcp2 = (xp - xc) * (xp - xc) + (yp - yc) * (yp - yc);
 
+    // Use the theorem -- look it up.
     return I0 + w0 * d0p2 + wc * dcp2;
 
   }
 
+  // A bit finnicky, but critical to do this right...
   void Region::add_cell_int_ext_neighbors(Cell *c) {
 
     ext_borders.erase(c);
@@ -691,6 +702,7 @@ namespace Cluscious {
 
   }
 
+  // Very similar to add_cell, but everything in reverse.
   void Region::remove_cell(Cell *c, bool UPDATE_CTR = true) {
 
     if (ncells == 1) return; // FIXME how to treat this.
@@ -863,6 +875,9 @@ namespace Cluscious {
 
   }
 
+  // The convex hull is made by taking the convex hull 
+  //    of all the points on the internal border.
+  // This is just for plotting in python.
   std::vector<std::pair<float, float> > Region::hull(bool IB) {
 
     std::vector<std::pair<float, float> > hull_ring;
@@ -870,7 +885,7 @@ namespace Cluscious {
     bg_mpt  multipt;
     bg_poly poly_hull;
 
-    // if (IB) for (auto c : cells)       bgeo::append(multipt, c->pt);
+    // if (IB) for (auto c : cells)   bgeo::append(multipt, c->pt);
     if (IB) for (auto c : int_borders)
       if (cells.find(c) != cells.end())
         bgeo::append(multipt, c->pt);
@@ -887,6 +902,8 @@ namespace Cluscious {
     return hull_ring;
   }
 
+
+  // The coordinates of the node ring are just returned for python plotting.
   std::vector<std::pair<float, float> > Region::get_point_ring() {
 
     std::vector<std::pair<float, float> > point_ring;
@@ -896,6 +913,7 @@ namespace Cluscious {
       return point_ring;
     }
 
+    // Make the ring from the edge topology.
     make_ring();
 
     for (auto n : node_ring) {
@@ -913,6 +931,8 @@ namespace Cluscious {
 
   }
 
+  // This is the actual perimeter border, rather than just
+  //   the nodes along the edge.
   // Not directly returning the float pairs makes it easier
   // to add in the queen/corner loops.
   void Region::get_node_ring(std::vector<Node*> &ring,
@@ -931,7 +951,7 @@ namespace Cluscious {
 
     // If a starting cell/edge is not provided, find a random one.
     // if we happen to choose a cell with only a corner connection
-    // to the outside, the external ege will fail; hence we loop.
+    // to the outside, the external edge will fail; hence we loop.
     for (auto ib = int_borders.begin();
          ib != int_borders.end() && this_edge_idx < 0; ++ib) {
       curr_cell = *ib;
@@ -1043,6 +1063,7 @@ namespace Cluscious {
   }
 
 
+  // Smallest circumscribing circle.
   float Region::update_scc(Cell* add = 0, Cell* sub = 0, bool UPDATE = false) { 
 
     // Avoid if at all possible
@@ -1054,10 +1075,11 @@ namespace Cluscious {
     // If the above condition fails, we know (xi, yi) is one of the 
     // support points, which dramatically changes the optimal algorithm.
     // On the other hand, if you remove a point, you don't know that one
-    // of the remaining points is on the border:
+    // of the remaining points is on the border.  Consider removing x:
     //  .
-    // :             x
+    // :                  x
     //  .
+    // Then the two points on the right are no longer on the border.
     
     // move data structure as a list of vectors
     // -->> faster to expose the data directly??
@@ -1081,6 +1103,8 @@ namespace Cluscious {
   }
 
 
+  // Remake the borders from scratch, 
+  //   if you loaded a partition.
   void Region::reset_borders() { 
 
     int_borders.clear();
@@ -1108,6 +1132,8 @@ namespace Cluscious {
   }
 
 
+  // Largest inscribed circle, uses Voronoi on the node ring.
+  // The center is one of the Voronoi nodes, 
   float Region::update_lic(Cell* add = 0, Cell* sub = 0, bool UPDATE = false) { 
 
     if (!node_ring.size()) {
@@ -1150,17 +1176,21 @@ namespace Cluscious {
     std::vector<bp_pt> poly_pts;
     bpoly::voronoi_diagram<double> vd;
 
+    // Fun fact: scale has to be pretty big for Boost Voronoi to work...
     for (auto n : ring) {
       bgeo::append(poly, n->pt);
       poly_pts.push_back(bp_pt(n->x*VOR_SCALE, n->y*VOR_SCALE));
     }
     bgeo::append(poly, ring.front()->pt);
 
+    // The center is one of the Voronoi nodes, so construct them...
     construct_voronoi(poly_pts.begin(), poly_pts.end(), &vd);
 
     double dist, x_max = xctr, y_max = yctr;
     double dist_max = 0;
 
+    // Iterate over the voronoi nodes, considering only the 
+    //   incident edges, which must be the closest ones (!!!).
     for (auto it : vd.vertices()) {
 
       bp_pt pt_vor(it.x(), it.y());
@@ -1185,10 +1215,10 @@ namespace Cluscious {
 
   }
 
-
-
+  // PCA using Armadillo.
   std::pair<float, float> Region::update_pca(Cell* add, Cell* sub, bool vec, bool UPDATE) {
 
+    // Create the Matrix
     int mncells = ncells + (add ? 1 : 0) - (sub ? 1 : 0);
     arma::mat M = arma::zeros<arma::mat>(mncells,2);
 
@@ -1207,6 +1237,7 @@ namespace Cluscious {
     arma::mat coeff,  score;
     arma::vec latent, tsquared;
 
+    // Do the PCA
     arma::princomp(coeff, score, latent, tsquared, M);
 
     if (UPDATE) {
@@ -1221,11 +1252,17 @@ namespace Cluscious {
 
   }
 
+  // Contiguity is occasionally broken when strands are removed
+  //   or regions are split.  Fix it.
   void Universe::force_contiguity(int rid, bool verbose) {
 
+    // Get a list of graphs....
     std::vector<std::unordered_set<Cell*> > graphs;
+
+    // If it's contiguous, you're done...
     if (regions[rid]->contiguous(graphs)) return;
 
+    // Otherwise, sort the components by graph size.
     std::sort(graphs.rbegin(), graphs.rend(), cellp_set_len_compare); 
 
     if (verbose) {
@@ -1234,6 +1271,8 @@ namespace Cluscious {
       cout << ":: and cells :: ";
     }
 
+    // Remove and reassign elements from the smaller components
+    //   until none remain.
     bool removed = true;
     while (removed) {
 
@@ -1263,20 +1302,17 @@ namespace Cluscious {
 
   }
 
+  // Just overloading.
   bool Region::contiguous() {
 
     std::vector<std::unordered_set<Cell*> > graphs;
     contiguous(graphs);
     if (graphs.size() == 1) return true;
 
-    // std::sort(graphs.rbegin(), graphs.rend(), cellp_set_len_compare); 
-    // cout << "WARNING ::: Region " << id << " has an extra graph with cells :: ";
-    // for (auto c : graphs.back()) cout << c->id << " ";
-    // cout << endl;
-
     return false;
   }
 
+  // Get the connected components on the piece passed by argument.
   bool Region::contiguous(std::vector<std::unordered_set<Cell*> > &graphs) {
 
     for (auto c : cells) {
@@ -1327,7 +1363,7 @@ namespace Cluscious {
 
   Universe::Universe() {}
   Universe::Universe(int n) 
-    : pop(0), rcount(0), ncells(0), nregions(n), total_iterations(0), loaded_topo(false), 
+    : pop(0), ncells(0), nregions(n), total_iterations(0), loaded_topo(false), 
     best_solution_val(0), best_tolerance_val(1), iterations_since_improvment(0), 
     ALPHA(4), RANDOM(false), TRADE(true), TABU_LENGTH(0),
     DESTRAND_MIN(2), DESTRAND_MAX(15)
@@ -1337,6 +1373,9 @@ namespace Cluscious {
 
   }
 
+  // Add cells.
+  // The universe makes all.
+  // Everything else is just pointers.
   void Universe::add_cell(Cell c) {
   
     cells.push_back(new Cell(c));
@@ -1347,6 +1386,7 @@ namespace Cluscious {
 
   }
 
+  // Add an edge (perimeter piece).
   void Universe::add_edge(int cell_id, int edge_id, int nodea, int nodeb) {
 
     for (auto& c : cells) {
@@ -1387,6 +1427,11 @@ namespace Cluscious {
     loaded_topo = true;
   }
 
+  // This is the shortest path graph,
+  //   for walking between nodes (euclidean between nodes).
+  // I cache only the "first step" in each path, so for A -> B -> C -> .. -> Z, 
+  // I store only that for A ---> Z, go first to B.  Upon arriving at B, 
+  //   the next step is the same as for B ----> Z.
   void Universe::build_dijkstra_graph() {
 
     for (auto& c : cells) {
@@ -1424,6 +1469,7 @@ namespace Cluscious {
   }
 
 
+  // Traverse the Dijkstra graph.  It does work...
   std::vector<int> Universe::do_dijkstra(int start_id, int end_id) {
 
     std::vector<int> path;
@@ -1446,6 +1492,7 @@ namespace Cluscious {
   }
 
 
+  // choose random cells for starting seeds.
   void Universe::rand_init(int seed = 0) {
 
     if (cells.size() < nregions) {
@@ -1477,6 +1524,7 @@ namespace Cluscious {
 
   }
 
+  // Get circle coordinates.
   std::pair<std::pair<float, float>, float> Universe::get_circle_coords(size_t rid, RadiusType rt) {
 
     if (rid >= regions.size()) return std::pair<std::pair<float, float>, float>();
@@ -1484,6 +1532,7 @@ namespace Cluscious {
 
   }
 
+  // Just for python plotting.
   std::vector<std::pair<float, float> > Universe::hull(size_t rid, int IB) { 
     
     if (rid >= regions.size()) return std::vector<std::pair<float, float> >();
@@ -1568,11 +1617,14 @@ namespace Cluscious {
 
   }
 
+  // Retrieve the actual assignments.
   std::map<int, int> Universe::cell_region_map() {
 
     std::map<int, int> crm;
     for (auto c : cells) {
       crm[c->id] = c->region;
+
+      // Some cells are "wards" of others -- get these too.
       for (auto l : c->enclaves_and_islands) 
         crm[l] = c->region;
     }
@@ -1581,6 +1633,7 @@ namespace Cluscious {
 
   }
 
+  // Get the interior or exterior borders of all regions.
   std::vector<int> Universe::border_cells(bool EXT = false, int rid = -1) {
 
     std::vector<int> bc;
@@ -1595,6 +1648,13 @@ namespace Cluscious {
 
   }
 
+
+  // This is the standard "start from the star" technique.
+  // Connect disconnected components -- islands etc.
+  //   based on the closest cells between the main component 
+  //   and the disconnected piece.
+  // This allows us to require contiguity in the rest of the algo.
+  // In practice I set these links by hand, to respect bridges, etc.
   void Universe::connect_graph() {
 
     std::vector<std::unordered_set<Cell*> > graphs;
@@ -1705,6 +1765,7 @@ namespace Cluscious {
 
   }
 
+  // Get the list of enclaves or islands.
   std::vector<int> Universe::clipped_cells() {
 
     std::vector<int> cc;
@@ -1717,7 +1778,7 @@ namespace Cluscious {
     return cc;
   }
 
-
+  // Not used for analysis.  Grow by k-means.
   void Universe::grow_kmeans(int popgrow = 0) {
 
     bool growth = true;
@@ -1765,6 +1826,7 @@ namespace Cluscious {
 
   }
 
+  // Classify based on nearest "ref" node.
   void Universe::voronoi_classify() {
 
     for (auto const& rA : regions) {
@@ -1804,6 +1866,9 @@ namespace Cluscious {
     }
   }
 
+  // Power diagram.  Classify by d^2 - power^2.
+  // Then slowly move the center towards the geographic center,
+  //   and adjust the power to equalize the populations.
   void Universe::iterate_power(float ptol, int niter, int reset_center, int verbose) {
 
     float best_tol = 1.;
@@ -1872,7 +1937,7 @@ namespace Cluscious {
 
   }
 
-  
+  // Random growth.
   void Universe::grow_random(int seed) {
 
     mersenne.seed(seed);
@@ -1914,7 +1979,7 @@ namespace Cluscious {
 
   }
 
-
+  // Load a partition from a list or file.
   void Universe::load_partition(std::map<int, int> reg_map) {
 
     for (auto r : regions) delete r;
@@ -1956,6 +2021,7 @@ namespace Cluscious {
 
   }
 
+  // Merge regions -- used for split/restart.
   bool Universe::merge_regions(int rA, int rB) {
 
     if (rA > rB) std::swap(rA, rB);
@@ -2032,6 +2098,8 @@ namespace Cluscious {
 
   }
 
+  // Split two regions in half.
+  // Use the PCA to divide perpendicular to the longer axis.
   bool Universe::split_region(int rA, float angle, bool connect, float margin) {
 
     int rB = -1;
@@ -2052,6 +2120,8 @@ namespace Cluscious {
 
     int nB = 1.*regions[rA]->pop * sB / seats;
 
+    // Define an angle to split along -- 
+    //   see use of nvec/dot prod below.
     std::pair<float, float> nvec;
     if (angle < 0) nvec = regions[rA]->update_pca(0, 0, true, true); // get vector and update values
     else nvec = std::make_pair(cos(angle * 2 * M_PI), sin(angle * 2 * M_PI));
@@ -2077,6 +2147,9 @@ namespace Cluscious {
       return false;
     }
 
+    // Until you've reached half the population, 
+    //   keep adding the cell that touches the split cell, 
+    //   and which is furthest to one side of the main axis.
     while (regions[rB]->pop < nB && opt_cell) {
 
       opt_cell = 0;
@@ -2131,6 +2204,7 @@ namespace Cluscious {
 
   }
 
+  // Split-line initialization
   void Universe::split_line_init() {
 
     bool new_splits = true;
@@ -2143,9 +2217,12 @@ namespace Cluscious {
         float best_angle = 0;
         float best_perim = std::numeric_limits<double>::infinity();
 
+        // Rotate in 20 steps, and find the one with the shortest perimeter.
         float perim_before = regions[r]->sumw_border;
         cout << "Splitting region " << r << " :: ";
         for (float a = 0.0; a < 1; a += 0.05) {
+          // False means we avoid hard-to-reverse cells 
+          //   (avoid forcing connectivity).
           if (split_region(r, a, false)) {
             float perim_after = regions[r]->sumw_border + regions.back()->sumw_border;
             if (best_perim > perim_after - perim_before) {
@@ -2159,6 +2236,8 @@ namespace Cluscious {
 
         cout << " :: best_angle=" << best_angle << endl;
 
+        // Once the best (shortest) split is identified, 
+        // do it for real.
         new_splits |= split_region(r, best_angle);
 
         float area_check = 0;
@@ -2180,6 +2259,7 @@ namespace Cluscious {
   }
 
 
+  // Not used -- test case similar to Chen/Rodden.
   void Universe::iterate(int niter = 1, float tol = 0.01, int r = -1) {
 
 
@@ -2281,6 +2361,7 @@ namespace Cluscious {
 
   }
 
+  // Chen and rodden.
   double Region::obj_distance(Cell* add, Cell* sub, float xx, float yy) {
 
     // This is a borderline normalization for area-based,
@@ -2313,7 +2394,7 @@ namespace Cluscious {
 
   }
 
-
+  // Same as above...
   double Region::obj_inertia_p(Cell* add, Cell* sub, bool verbose) {
 
     double Ip_R(Ip), amod(area), pmod(pop);
@@ -2342,6 +2423,7 @@ namespace Cluscious {
   }
 
 
+  // Recalculate SCC only if necessary.
   double Region::obj_reock(Cell* add, Cell* sub, bool verbose) {
 
     float r2_mod = update_scc(add, sub);
@@ -2364,6 +2446,7 @@ namespace Cluscious {
 
   }
 
+  // Largest Inscribing Circle; update if necessary.
   double Region::obj_ehrenburg(Cell* add, Cell* sub, bool verbose) {
 
     if ((add && !add->neighbors_connected()) ||
@@ -2391,6 +2474,7 @@ namespace Cluscious {
   }
 
 
+  // Just use Boost Geometry
   double Region::obj_hull(Cell* add, Cell* sub, bool verbose) {
 
     if (!add && !sub) return area / ch_area;
@@ -2426,16 +2510,12 @@ namespace Cluscious {
            << " =" << std::setprecision(5) << hull_mod << "=" << amod << "/" << chamod << endl;
     }
 
-    // return hull_mod - hull_nom;
     return hull_mod;
 
   }
 
-
+  // Similar but for population.
   double Region::obj_hull_p(Cell* add, Cell* sub, bool verbose) {
-
-    // float dist_pop = pop;
-    // float hull_pop = pop;
 
     float dist_pop_mod = pop;
     if (add) dist_pop_mod += add->pop;
@@ -2485,6 +2565,8 @@ namespace Cluscious {
     int round = 0;
     std::unordered_set<Cell*> mod_next; // , nom_next;
     
+    // Now loop over the possible cells to add, 
+    // starting from the external border, and growing out
     while (!mod_to_add.empty()) {
       round++;
 
@@ -2519,6 +2601,12 @@ namespace Cluscious {
 
   }
 
+  // Path fraction:
+  //   fraction of the time that the path between two cells
+  //   is contained within the region.
+  // This is immensely slow.  Basically, we're looking for the first time
+  // that the crawler from A to Z steps outside of the region.
+  // This is slow to start, and it's N^2 in the number of cells.
   double Region::obj_path_frac(Cell* add, Cell* sub, bool verbose) {
 
     // if (verbose) cout << "In obj_path_frac..." << endl;
@@ -2599,6 +2687,9 @@ namespace Cluscious {
 
   }
 
+  // Very simple: area circle of equal perimeter.
+  // So just have to keep track of changes in perimeter.
+  // This is very similar to add/remove_cell.
   double Region::obj_polsby(Cell* add, Cell* sub, bool verbose) {
 
     if (!add && !sub) return 4 * M_PI * area / sumw_border / sumw_border; // 4*pi*A/P^2
@@ -2639,6 +2730,7 @@ namespace Cluscious {
 
   }
 
+  // Length by with through eigenvectors.
   double Region::obj_axis_ratio (Cell* add, Cell* sub, bool verbose) {
 
     if (!add && !sub) return pca1/pca0;
@@ -2649,42 +2741,46 @@ namespace Cluscious {
 
   }
 
+  // Mean radius (area normalized).
   double Region::obj_mean_radius(Cell* add, Cell* sub, bool verbose) {
 
     // Keep these variables for comparison.
     float xmod(xctr * area), ymod(yctr * area), amod(area);
 
+    // The center will change if you add or remove a cell...
     if (add) { xmod += add->area * add->x; ymod += add->area * add->y; amod += add->area; }
     if (sub) { xmod -= sub->area * sub->x; ymod -= sub->area * sub->y; amod -= sub->area; }
 
     xmod /= amod; ymod /= amod;
 
+    // Calculate distances...
     float omod = 0; //, omod = 0;
     for (auto c : cells) {
-      // onom += c->area * c->dist(xctr, yctr);
       omod += c->area * c->dist(xmod, ymod);
     }
 
+    // Add or remove the celll...
     if (add) omod += add->area * add->dist(xmod, ymod);
     if (sub) omod -= sub->area * sub->dist(xmod, ymod);
 
-    // onom = (2 * sqrt(area/M_PI) / 3) / (onom / area);
+    // Normalized value...
     omod = (2 * sqrt(amod/M_PI) / 3) / (omod / amod);
 
     if (verbose) {
       cout << "Mean radius (x, y)=(" << xmod << ", " << ymod << ")    omod=" << omod << endl;
     }
 
-    // return omod - onom;
     return omod;
 
   }
 
+  // Dynamic radius -- distance squared
   double Region::obj_dyn_radius (Cell* add, Cell* sub, bool verbose) { 
 
     // Keep these variables for comparison.
     float xmod(xctr * area), ymod(yctr * area), amod(area);
 
+    // As above, center can move...
     if (add) { xmod += add->area * add->x; ymod += add->area * add->y; amod += add->area; }
     if (sub) { xmod -= sub->area * sub->x; ymod -= sub->area * sub->y; amod -= sub->area; }
 
@@ -2692,14 +2788,13 @@ namespace Cluscious {
 
     float omod = 0; //, omod = 0;
     for (auto c : cells) {
-      // onom += c->area * c->d2(xctr, yctr);
       omod += c->area * c->d2(xmod, ymod);
     }
 
     if (add) omod += add->area * add->d2(xmod, ymod);
     if (sub) omod -= sub->area * sub->d2(xmod, ymod);
 
-    // onom = sqrt((area/(2 * M_PI)) / (onom/area));
+    // And again, the normalized value.
     omod = sqrt((amod/(2 * M_PI)) / (omod/amod));
 
     if (verbose) {
@@ -2709,13 +2804,12 @@ namespace Cluscious {
       cout << endl;
     }
 
-    // return omod - onom;
     return omod;
 
   }
 
 
-
+  // Once again with the 1 / R.
   double Region::obj_harm_radius(Cell* add, Cell* sub, bool verbose) {
     
     // Keep these variables for comparison.
@@ -2726,9 +2820,8 @@ namespace Cluscious {
 
     xmod /= amod; ymod /= amod;
 
-    float omod = 0; //, onom = 0;
+    float omod = 0; 
     for (auto c : cells) {
-      // onom += c->area / c->dist(xctr, yctr);
       
       // The average of 1/r isn't the same as
       // the average of 1/rctr, esp. near the center.
@@ -2742,7 +2835,6 @@ namespace Cluscious {
     if (sub) omod -= sub->area / sub->dist(xmod, ymod);
 
     float obj = sqrt(amod/M_PI)/2 / (amod/omod);
-    // float obj = (amod/omod) / (sqrt(amod/M_PI)/2);
 
     if (verbose) {
       cout << "harm radius " << "(" << (add ? "A" : "") << (sub ? "S" : "") << ") :: "
@@ -2750,11 +2842,11 @@ namespace Cluscious {
            << "(x, y)=(" << xmod << ", " << ymod << ")    obj=" << obj << endl;
     }
 
-    // return omod - onom;
     return obj;
   
   }
 
+  // Distance to the perimeter
   double Region::obj_rohrbach(Cell* add, Cell* sub, bool verbose) { 
 
     // Keep these variables for comparison.
@@ -2800,17 +2892,11 @@ namespace Cluscious {
       }
     }
 
+    // Find the minimum distance to a perimeter cell.
+    // Could also do this with node_ring.
     float d2, d2_min;
     float omod = 0; //, omod = 0;
     for (auto c : cells) {
-
-      // d2_min = std::numeric_limits<float>::infinity();
-      // for (auto ib : int_borders) {
-      //   d2 = c->d2(ib); 
-      //   if (d2 < d2_min) d2_min = d2;
-      // }
-      // if (d2 > 10000) cout << __LINE__ << " cells=" << ncells << " (" << (add ? "A" : "") << (sub ? "S" : "") << ")" << " d2=" << d2 << endl;
-      // onom += c->area * sqrt(d2_min);
 
       if (c == sub) continue;
       d2_min = std::numeric_limits<float>::infinity();
@@ -2818,7 +2904,6 @@ namespace Cluscious {
         d2 = c->d2(ib); 
         if (d2 < d2_min) d2_min = d2;
       }
-      // if (d2 > 10000) cout << __LINE__ << " cells=" << ncells << " (" << (add ? "A" : "") << (sub ? "S" : "") << ")" << " d2=" << d2 << endl;
       omod += c->area * sqrt(d2_min);
     }
 
@@ -2828,34 +2913,29 @@ namespace Cluscious {
         d2 = add->d2(ib); 
         if (d2 < d2_min) d2_min = d2;
       }
-      // if (d2 > 10000) cout << __LINE__ << " cells=" << ncells << " (" << (add ? "A" : "") << (sub ? "S" : "") << ")" << " d2=" << d2 << endl;
       omod += add->area * sqrt(d2_min);
     }
 
-    if (verbose) cout << "modsum=" << omod << endl; // " and nomsum=" << onom << " :: ";
+    if (verbose) cout << "modsum=" << omod << endl; 
 
     float Rmod3 = pow(sqrt(amod/M_PI), 3);
     omod = omod / (M_PI * Rmod3/ 3);
 
-    // float Rnom3 = pow(sqrt(area/M_PI), 3);
-    // onom = onom / (M_PI * Rnom3/ 3);
-
     if (verbose) {
       cout << "Rmod=" << pow(Rmod3, 1/3.) << "(" << (add ? "A" : "") << (sub ? "S" : "") << ")  omod=" << omod << endl;
-      // << " and Rnom=" << pow(Rnom3, 1/3.) << endl;
-      // cout << "omod=" << omod << " and onom=" << onom << endl;
     }
 
-    // return omod - onom;
     return omod;
 
   }
 
+  // Overlap between region and equal-area circle.
   double Region::obj_exchange(Cell* add, Cell* sub, bool verbose) {
   
     // Keep these variables for comparison.
     float xmod(xctr * area), ymod(yctr * area), amod(area);
 
+    // Recalc center and area...
     if (add) { xmod += add->area * add->x; ymod += add->area * add->y; amod += add->area; }
     if (sub) { xmod -= sub->area * sub->x; ymod -= sub->area * sub->y; amod -= sub->area; }
 
@@ -2866,6 +2946,7 @@ namespace Cluscious {
 
     float omod = 0; // , onom = 0;
 
+    // Get area within equal area radius.
     if (add && add->d2(xmod, ymod) < Rmod2) omod += add->area;
 
     for (auto c : cells) {
@@ -2882,6 +2963,8 @@ namespace Cluscious {
   }
 
 
+
+  // Distances...
   float Region::d2(Region* r, RadiusType rt) {
 
     std::pair< std::pair<float, float>, float > circ = r->get_circle_coords(rt);
@@ -2903,6 +2986,8 @@ namespace Cluscious {
     return (x-xR)*(x-xR) + (y-yR)*(y-yR);
   }
 
+  // De-stranding procedure.
+  // Peel off "strands" that would not come off on their own.
   bool Universe::transfer_strand(std::unordered_set<Cell*>& strand) {
 
     std::unordered_set<Cell*> bak = strand;
@@ -2921,7 +3006,6 @@ namespace Cluscious {
         // Move in an order that preserves contiguity.
         std::unordered_set<int> nei_reg = c->neighbor_regions(level);
         if (nei_reg.size()) {
-          // if (level) cout << c->id << " " << c->region << "->" << *nei_reg.begin() << endl;
 
           regions[c->region]->remove_cell(c); 
           regions[*nei_reg.begin()]->add_cell(c);
@@ -2934,31 +3018,8 @@ namespace Cluscious {
 
       if (!removed) {
         if (!level) {
-
-          // if (bak.size()) cout << "Removing strand of size " << bak.size() << " consisting of :: ";
-          // for (auto s : bak) cout << s->id << " (r" << s->region << ")  ";
-          // if (bak.size()) cout << endl;
-    
-          // cout << "switching to queen contiguity." << endl;
-          // cout << " we still have left " << endl;
-          // for (auto c : strand) {
-          //   cout << "cell " << c->id << " (r" << c->region << ")  connected=" << c->neighbors_connected(level)
-          //        << "  n neighbors regions=" << c->neighbor_regions(level).size();
-          //   cout << " ::";
-          //   for (auto nr : c->neighbor_regions(level)) cout << " " << nr;
-          //   cout << " :: ";
-          //   for (auto n : c->nm) cout << " " << n.first->id << "(" << n.first->region << ")  ";
-          //   cout << endl;
-          // }
           level = 1;
         } else if (level == 1) {
-          // cout << "disregarding contiguity...  level 2" << endl;
-          // cout << " we still have left " << endl;
-          // for (auto c : strand) {
-          //   cout << c->id << "  connected=" << c->neighbors_connected(level) << "  regions=" << c->neighbor_regions(level).size() << "   ::  ";
-          //   for (auto n : c->nm) cout << " " << n.first->id << "(" << n.first->region << ")  ";
-          //   cout << endl;
-          // }
           level = 2;
         } else {
           cout << "Could not complete strand removal :: we still have left " << endl;
@@ -3028,6 +3089,8 @@ namespace Cluscious {
   }
 
 
+  // Possibility of trading cells between regions, 
+  //   if it's an improvement for both of them.
   bool Universe::trade(Region* ir, Region* single_er, ObjectiveMethod om) {
 
     std::unordered_map<int, bool> ib_connected;
@@ -3046,29 +3109,41 @@ namespace Cluscious {
       curr_obj = ir->obj(om);
     }
 
+    // Iterate over external borders.
     Cell *add = 0, *sub = 0;
     for (auto& eb : ir->ext_borders) {
 
       if (eb->region < 0) continue; // unassigned.
       if (!eb->neighbors_connected(false, false)) continue;
   
+      // For the region of that external cell...
       Region* er = regions[eb->region];
 
+      // If the external region was specified, 
+      // check that it matches...
       if (single_er && single_er != er) continue;
 
+      // Now consider the internal borders
       for (auto& ib : ir->int_borders) {
 
         if (er->ext_borders.find(ib) == er->ext_borders.end()) continue;
 
+        // If its neighbors are connected, 
+        // and it's not touching the cell from the external border
+        //  currently being considered....
         if (!ib_connected[ib->id]) continue;
         if ( ib->is_neighbor(eb) ) continue; // Not worth it....
 
+        // Then calculate the changes in the objective funtions from swapping them.
         float delta(0);
         if (om == ObjectiveMethod::HULL_A    || om == ObjectiveMethod::HULL_P    ||
             om == ObjectiveMethod::INERTIA_A || om == ObjectiveMethod::INERTIA_P ||
             om == ObjectiveMethod::ROHRBACH  || om == ObjectiveMethod::POLSBY) {
           delta = - (ir->obj(om, eb, ib) - curr_obj + er->obj(om, ib, eb) - er->obj(om));
         } else {
+
+          // Ehrenburg and Reock will actually use this, since they are usually
+          // indeterminate about changes that don't affect the circle itself.
           delta = + er->dist(ib->x, ib->y, rt) + ir->dist(eb->x, eb->y, rt)  // mod distances 
                   - er->dist(ib->x, ib->y, rt) + ir->dist(eb->x, eb->y, rt); // nom distances
         }
@@ -3090,7 +3165,8 @@ namespace Cluscious {
 
   }
   
-
+  // Find the actual best move.
+  //   This can be either random (GRASP) or standard greedy.
   bool Universe::greedy(Region* rit, ObjectiveMethod omethod, float gtol, float best_move, bool random, int r, bool verbose) {
     
     Cell* b_opt_c = 0;
@@ -3103,6 +3179,7 @@ namespace Cluscious {
       float r_base = rit->obj(omethod, 0, 0, verbose);
       if (verbose) cout << "GRASP Region " << rit->id << " beat :: " << r_base << endl;
 
+      // Shuffle the cells...
       std::vector<std::unordered_set<Cell*>::iterator> ebv(rit->ext_borders.size());
       std::iota(ebv.begin(), ebv.end(), rit->ext_borders.begin());
       std::shuffle(ebv.begin(), ebv.end(), mersenne);
@@ -3111,10 +3188,12 @@ namespace Cluscious {
 
         Cell* b = *ebit;
         if (r >= 0 && b->region != r && rit->id != r) continue;
+
+        // If it's GRASP, then as soon as the move is positive, do it.
         greedy_evaluate(rit, b, gtol, omethod, best_move, b_opt_c, opt_strands, verbose);
         if (best_move > r_base) {
           if (verbose) cout << "    positive -- done :: " << best_move-r_base << endl;
-          break;
+          break; // GRASP!!
         } else {
           if (verbose) cout << "    value was " << best_move-r_base << endl;
           b_opt_c = 0;
@@ -3123,6 +3202,8 @@ namespace Cluscious {
 
     } else {
 
+      // Loop over the external border, 
+      //   to find the cell that helps most.
       for (auto b : rit->ext_borders) {
 
         if (r >= 0 && b->region != r && rit->id != r) continue;
@@ -3134,6 +3215,7 @@ namespace Cluscious {
     }
 
 
+    // Add this cell to the region.
     if (b_opt_c) {
       int rem_reg = b_opt_c->region;
 
@@ -3154,6 +3236,7 @@ namespace Cluscious {
   }
 
 
+  // This is where we actually calculate changes in the objective functions, and call oiterate.
   bool Universe::greedy_evaluate(Region* r, Cell* b, float gtol, ObjectiveMethod omethod,
                                  float& best_move, Cell*& b_opt_c, std::unordered_set<Cell*>& opt_strands,
                                  bool verbose) {
@@ -3167,35 +3250,31 @@ namespace Cluscious {
      float dp_ij = sign(dbpop - dpop) * pow(fabs(dpop - dbpop)/gtol, ALPHA);
      if (fabs(dp_ij) > 1e6) dp_ij = sign(dbpop - dpop) * 1e6;
 
-     // float dp_ij = pow(fabs(r->pop/target - 1)/gtol, ALPHA) - 
-     //               pow(fabs((r->pop+b->pop)/target - 1)/gtol, ALPHA);
-
-     // if (b->region >= 0) {
-     //   dp_ij += pow(fabs( regions[b->region]->pop          /target - 1)/gtol, ALPHA) -
-     //            pow(fabs((regions[b->region]->pop - b->pop)/target - 1)/gtol, ALPHA); 
-     // } else dp_ij = 1e6;
-
 
      // current r objective fn is constant across the set we're evaluating over
      // (everything in this region), so don't worry about subtracting off its current value
      // For now, DO recalculate the current obj fn for the other region.
      float dF_ij = r->obj(omethod, b, 0, verbose);
-     if (b->region >= 0) {
+     if (b->region >= 0) { // Change in objective from spatial piece.
        dF_ij += regions[b->region]->obj(omethod, 0, b, verbose) - 
                 regions[b->region]->obj(omethod, 0, 0, verbose);
      }
 
-     float dO_ij = dp_ij + dF_ij;
+     float dO_ij = dp_ij + dF_ij; // Initial.
      if (verbose) cout << "Test moving " << b->id << " from r=" << b->region << " to " << r->id 
                        << " :: dp_ij=" << dp_ij // << " (" << dpop << " > " << dbpop << ")"
                        << "  dF_ij=" << dF_ij << "  dO_ij=" << dO_ij << "     ";
      if (verbose) cout << " best now b=" << (b_opt_c ? b_opt_c->id : -1) << " val=" << best_move << endl;
 
+     // IF this is the best move yet, keep going...
      if (dO_ij < best_move) return false;
      if (verbose) cout << "  >>  best move." << endl;
      if (b->region >= 0 && regions[b->region]->ncells == 1) return false;
      if (verbose) cout << "  >>  neighbor has enough cells!" << endl;
 
+     // If this is a cut vertex, 
+     //  then either get out or -- if destranding is allowed -- 
+     //  check that none of the cells in the strand are on the tabu list.
      std::unordered_set<Cell*> strand;
      if (b->region >= 0) {
        int max = (DESTRAND_MAX < regions[b->region]->ncells/2) ? DESTRAND_MAX : (regions[b->region]->ncells/2-1);
@@ -3222,6 +3301,7 @@ namespace Cluscious {
   }
 
 
+  // This is the optimizer over all regions.
   bool Universe::oiterate(ObjectiveMethod omethod, int niter = 1, float llh_tol = 0.01, float cut_tol = 0, 
                           int conv_iter = 0, int seed = 0, int r = -1, int verbose = 0) {
 
@@ -3236,6 +3316,7 @@ namespace Cluscious {
     if (r >= int(regions.size()))
       throw std::runtime_error(std::string("Cannot iterate over region -- there aren't that many!"));
 
+    // For niter iteractions, loop over all of the regions.
     for (int i = 0; i < niter; i++) { // The number of iterations.
 
       mersenne.seed(total_iterations + seed); // Different splits of loops etc. should be reproducible.
@@ -3251,7 +3332,8 @@ namespace Cluscious {
         }
       }
 
-      for (auto rit : regions) { // over all regions...
+      // Loop over regions
+      for (auto rit : regions) { 
 
         if (TRADE) trade(rit, 0, omethod);
 
@@ -3260,8 +3342,10 @@ namespace Cluscious {
 
       }
 
+      // De-strand if it is relevant.
       destrand(DESTRAND_MIN, DESTRAND_MAX, cut_tol);
 
+      // If this is the best yet, save it.
       update_best_solutions(omethod, cut_tol, verbose);
 
       if (conv_iter && iterations_since_improvment > conv_iter) {
@@ -3274,10 +3358,13 @@ namespace Cluscious {
     return false;
   }
 
+  // Check if this is the best solution yet; 
+  //   if so, save it.
   void Universe::update_best_solutions(ObjectiveMethod omethod, float tol, bool verbose) {
 
     iterations_since_improvment++;
 
+    // Get the larget population deviation.
     float spatial_obj = 0, pop_max_dtol = 0;
     for (auto rit : regions) {
       spatial_obj += rit->obj(omethod);
@@ -3286,6 +3373,9 @@ namespace Cluscious {
       if (dtol > pop_max_dtol) pop_max_dtol = dtol;
     }
 
+    // If the population tolerance is above tolerance, then 
+    //  just work to reduce the deviation.
+    // But if it has been met, just save the best spatial objective value.
     if ((best_tolerance_val > tol && pop_max_dtol < best_tolerance_val) ||
         (pop_max_dtol < tol && best_solution_val < spatial_obj)) {
       best_solution_val = spatial_obj;
@@ -3333,14 +3423,8 @@ namespace Cluscious {
   }
 
 
+  // Clean up the graph -- remove burrs from the graph...
   void Universe::trim_graph(float max_frac) {
-
-    // for (auto c : cells) {
-    //   cout << "BEFORE MERGE  :::::  ";
-    //   cout << "cid=" << c->id << " :: ";
-    //   for (auto n : c->nm) cout << n.first->id << " ";
-    //   cout << endl;
-    // }
 
     int clipped = 0 ;
 
@@ -3361,8 +3445,6 @@ namespace Cluscious {
         if (n.second) nit = n.first;
       }
 
-      // if (nit && (*cit)->nm.size() > 1) cout << "  ***  cit " << (*cit)->id << " is one of the wacky ones." << endl;
-
       if (nit) {
 
         nit->merge(*cit);
@@ -3382,26 +3464,6 @@ namespace Cluscious {
 
       int merged = merge_strands(cells[ci], max_frac);
 
-      // for (auto c : cells) {
-      //   for (auto n : c->nm) {
-      //     if (find(cells.begin(), cells.end(), n.first) == cells.end()) {
-      //       cout << "BROKE DURING MERGE OF " << cells[ci]->id << " :: ";
-      //       for (auto n : cells[ci]->nm) cout << n.first->id << " ";
-      //       cout << endl;
-
-      //       cout << "BROKEN CELL IS ::::: cid=" << c->id << " :: ";
-      //       for (auto n : c->nm) cout << n.first->id << " ";
-      //       cout << endl;
-
-      //       cout << "The clipped cells now include :: ";
-      //       for (auto cc : clipped_cells()) cout << cc << " ";
-      //       cout << endl;
-
-      //       exit(1);
-      //     }
-      //   }
-      // }
-      
       // backtrack by the max cells we could have lost...
       ci -= merged;
       if (ci < 0) ci = 0;

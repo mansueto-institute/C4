@@ -4,7 +4,7 @@
 #include <boost/geometry/geometries/adapted/boost_polygon.hpp>
 
 
-namespace Cluscious {
+namespace c4 {
   
   namespace bpoly = boost::polygon;
   typedef bpoly::point_data<double> bp_pt;

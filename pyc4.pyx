@@ -1,5 +1,5 @@
 # distutils: language=c++
-# distutils: sources=Cluscious.cpp
+# distutils: sources=c4.cpp
 # distutils: libraries = armadillo
 # distutils: include_dirs = /usr/local/include
 
@@ -13,7 +13,7 @@ from libcpp.pair cimport pair
 # from libcpp.unordered_map cimport unordered_map
 from libcpp.unordered_set cimport unordered_set
 
-cdef extern from "Cluscious.h" namespace "Cluscious" :
+cdef extern from "c4.h" namespace "c4" :
 
     cpdef enum ObjectiveMethod:
         DISTANCE_A, DISTANCE_P, INERTIA_A, INERTIA_P, HULL_A, HULL_P, POLSBY, REOCK, EHRENBURG,
@@ -105,7 +105,7 @@ cdef class cell:
         self.c_cell.add_edge(eid, nodea, nodeb)
 
     def __str__(self):
-        return "<pycl::cell id={} (x,y)=({:.02f},{:.02f})>".format(self.c_cell.id, self.c_cell.x, self.c_cell.y)
+        return "<pyc4::cell id={} (x,y)=({:.02f},{:.02f})>".format(self.c_cell.id, self.c_cell.x, self.c_cell.y)
 
     property id:
         def __get__(self): return self.c_cell.id

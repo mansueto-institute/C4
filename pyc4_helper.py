@@ -58,25 +58,25 @@ def ens_data(usps, bgroup):
   cache_race_file(usps, bgroup)
 
 
-import pycluscious as pycl
-pycl_methods = {"reock"       : pycl.ObjectiveMethod.REOCK, 
-                "dist_a"      : pycl.ObjectiveMethod.DISTANCE_A,
-                "dist_p"      : pycl.ObjectiveMethod.DISTANCE_P,
-                "inertia_a"   : pycl.ObjectiveMethod.INERTIA_A,
-                "inertia_p"   : pycl.ObjectiveMethod.INERTIA_P,
-                "polsby"      : pycl.ObjectiveMethod.POLSBY,
-                "hull_a"      : pycl.ObjectiveMethod.HULL_A,
-                "hull_p"      : pycl.ObjectiveMethod.HULL_P,
-                "path_frac"   : pycl.ObjectiveMethod.PATH_FRAC,
-                "ehrenburg"   : pycl.ObjectiveMethod.EHRENBURG,
-                "axis_ratio"  : pycl.ObjectiveMethod.AXIS_RATIO,
-                "mean_radius" : pycl.ObjectiveMethod.MEAN_RADIUS,
-                "dyn_radius"  : pycl.ObjectiveMethod.DYN_RADIUS,
-                "harm_radius" : pycl.ObjectiveMethod.HARM_RADIUS,
-                "rohrbach"    : pycl.ObjectiveMethod.ROHRBACH,
-                "exchange"    : pycl.ObjectiveMethod.EXCHANGE}
+import pyc4
+pyc4_methods = {"reock"       : pyc4.ObjectiveMethod.REOCK, 
+                "dist_a"      : pyc4.ObjectiveMethod.DISTANCE_A,
+                "dist_p"      : pyc4.ObjectiveMethod.DISTANCE_P,
+                "inertia_a"   : pyc4.ObjectiveMethod.INERTIA_A,
+                "inertia_p"   : pyc4.ObjectiveMethod.INERTIA_P,
+                "polsby"      : pyc4.ObjectiveMethod.POLSBY,
+                "hull_a"      : pyc4.ObjectiveMethod.HULL_A,
+                "hull_p"      : pyc4.ObjectiveMethod.HULL_P,
+                "path_frac"   : pyc4.ObjectiveMethod.PATH_FRAC,
+                "ehrenburg"   : pyc4.ObjectiveMethod.EHRENBURG,
+                "axis_ratio"  : pyc4.ObjectiveMethod.AXIS_RATIO,
+                "mean_radius" : pyc4.ObjectiveMethod.MEAN_RADIUS,
+                "dyn_radius"  : pyc4.ObjectiveMethod.DYN_RADIUS,
+                "harm_radius" : pyc4.ObjectiveMethod.HARM_RADIUS,
+                "rohrbach"    : pyc4.ObjectiveMethod.ROHRBACH,
+                "exchange"    : pyc4.ObjectiveMethod.EXCHANGE}
 
-pycl_formal  = {
+pyc4_formal  = {
                 "dist_a"      : "Distance to Areal Center",
                 "dist_p"      : "Distance to Pop. Center",
                 "reock"       : "Circumscribing Circles",
@@ -97,7 +97,7 @@ pycl_formal  = {
                }
 
 
-pycl_short  = {
+pyc4_short  = {
                "dist_a"      : "DistArea",
                "dist_p"      : "DistPop",
                "reock"       : "CircCircle",
@@ -119,13 +119,13 @@ pycl_short  = {
               }
 
 
-pycl_circles = {"area"     : pycl.RadiusType.EQUAL_AREA, 
-                "area_pop" : pycl.RadiusType.EQUAL_AREA_POP, 
-                "circ"     : pycl.RadiusType.EQUAL_CIRCUMFERENCE, 
-                "scc"      : pycl.RadiusType.SCC, 
-                "lic"      : pycl.RadiusType.LIC,
-                "hull"     : pycl.RadiusType.HULL,
-                "power"    : pycl.RadiusType.POWER}
+pyc4_circles = {"area"     : pyc4.RadiusType.EQUAL_AREA, 
+                "area_pop" : pyc4.RadiusType.EQUAL_AREA_POP, 
+                "circ"     : pyc4.RadiusType.EQUAL_CIRCUMFERENCE, 
+                "scc"      : pyc4.RadiusType.SCC, 
+                "lic"      : pyc4.RadiusType.LIC,
+                "hull"     : pyc4.RadiusType.HULL,
+                "power"    : pyc4.RadiusType.POWER}
 
 
 us_states = ["al", "ak", "az", "ar", "ca", "co", "ct", "de", "dc",
