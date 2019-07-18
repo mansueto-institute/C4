@@ -46,7 +46,7 @@ def state_seats(stfip):
 
 def get_tract_populations(stfip):
 
-    pop_call = "http://api.census.gov/data/2014/acs5?get=NAME,B01001_001E&for=tract:*&in=state:%d"
+    pop_call = "https://api.census.gov/data/2015/acs/acs5?for=tract:*&in=state:%d&get=B01001_001E"
     cjs = requests.get(pop_call % stfip).json() 
     cdf = pd.DataFrame(cjs[1:], columns = cjs[0])
     cdf["county"] = pd.to_numeric(cdf["county"])
@@ -331,9 +331,9 @@ def run_clusterpy_districting(stfip, method = "maxp", VISUALIZE = True):
 
 
 
-for stfip in [42]: # [6, 15, 23, 42, 48]:
-    # retrieve_and_merge_state(stfip)
+for stfip in [24]: # [6, 15, 23, 42, 48]:
+    retrieve_and_merge_state(stfip)
     get_mod_rook(stfip, VISUALIZE = True)
-    run_clusterpy_districting(stfip, method = "maxp", VISUALIZE = True)
+    # run_clusterpy_districting(stfip, method = "maxp", VISUALIZE = True)
         
 
