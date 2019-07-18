@@ -1,5 +1,17 @@
 import platform, distutils.core, distutils.extension, Cython.Build
 
+
+## A hack?  Yes -- Anaconda compiler update broke my linking.
+##    and the strict prototypes thing is just an obnoxious holdover from c.
+import distutils.sysconfig, re
+cfg_vars = distutils.sysconfig.get_config_vars()
+for key, value in cfg_vars.items():
+    # print(key, cfg_vars[key])
+    if type(value) == str:
+        value = value.replace("-Wstrict-prototypes", "")
+        value = re.sub(r"-B.*compiler_compat", "", value)
+        cfg_vars[key] = value
+
 import sys
 
 ## Macs require this extra build option.
