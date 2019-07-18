@@ -47,9 +47,11 @@ This means: run Pennsylvania, for up to 100k iterations initialized through the 
 
 This is a little different from most methods, since power diagrams do not use the standard greedy optimizer.  More typical is:
 ```
-./run.py -s pa -m hull_p -t 0.01 -x300 -n10000 -c20 --conv_iter 500  --destrand_min 3 --destrand_max 50 --allow_trades
+./run.py -s pa -m hull_p -t 0.01 -x300 -n10000 --conv_iter 500 -c20  --destrand_min 3 --destrand_max 50 --allow_trades
 ```
-This means use the hull population method.  Run up to 10000 iterations total, and stop after 500 iterations with no improvement.  Do remove "strands" from the regions (larger than 3, but smaller than 50 cells).
+This means use the hull population method.  Run up to 10000 iterations total, and stop after 500 iterations with no improvement.
+Restart the search 20 times.
+Do remove "strands" from the regions (larger than 3, but smaller than 50 cells).
 
 Aternatively, you can just accept my defaults, and do
 ```
