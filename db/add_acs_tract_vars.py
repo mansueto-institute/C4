@@ -13,8 +13,6 @@ from netrc import netrc
 user, acct, passwd = netrc().authenticators("harris")
 user, acct, apikey = netrc().authenticators("census")
 
-apikey = "a4b2eab7c7050050923fffa485fb81e22be63e68"
-
 import requests, json
 import sys
 
