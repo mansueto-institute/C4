@@ -51,5 +51,6 @@ All data is needed to run c4 is cached in the `../shapes/` and `../demographics/
    that amount to just around 120 MB.
 Users will note note that in addition to the Census tract geographies (`??.shp`),
    there are also edge (`??_edges.shp`) and node (`??_node.shapefiles`).
-The `??_info.shp` shapefiles are deprecated but not removed in favor of `??_info.csv`,
-  which contains simply the current number of seats, FIPS code, and EPSG code for each state.
+The `??_info.csv` contain the current number of seats, FIPS code, and EPSG code for each state.
+(The similarly named `??_info.shp` shapefiles are deprecated but not removed;
+  they also contain the state outline.)
