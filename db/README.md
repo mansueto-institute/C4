@@ -19,6 +19,9 @@ These scripts each have three stages:
 In addition, the `import_census_block.sh` retrieves the block point locations (to which populations are appended),
   which is used to calculate the spatial distribution of popuations for historic districts.
 Those distributions are used to calculate compactness scores for historic districts, for the appendix and online maps.
+For the states, `import_states.sh` has both state geometries and the CRS/EPSG codes listed in `state_epsg.csv`,
+  which are the local geometries used for all analysis.
+Finally, the 2010 VTDs assembled by the Census and used for some precinct locations, are in `import_vtds.sh`.
 
 ## Topo Simplify
 
