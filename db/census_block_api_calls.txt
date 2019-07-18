@@ -1,0 +1,14 @@
+## 1990 Block Groups
+https://api.census.gov/data/1990/sf3?get=P0010001,P0080002,P0100001&for=block%20group:*&in=state:42+county:1
+
+
+## 2000 Block Groups
+https://api.census.gov/data/2000/sf1?get=P001001,P003004,P004002&for=block+group:*&in=state:42+county:1
+
+## 2010 Block Groups
+https://api.census.gov/data/2010/sf1?key=%s&get=P0010001,P0030003,P0040003&for=block%20group:*&in=state:42+county:1
+
+
+https://api.census.gov/data/2000/sf1?get=P001001,P003004,P004002&for=block:*&in=state:42+county:1+tract:030101
+
+https://api.census.gov/data/2010/sf1?key=%s&get=P0010001,P0030003,P0040003&for=block:*&in=state:42+county:1+tract:030101

@@ -11,7 +11,7 @@ SELECT topology.AddTopoGeometryColumn('temp_topo', 'public', 'temp_table', 'topo
 UPDATE temp_table SET topogeom = toTopoGeom(geom, 'temp_topo', 1); 
 
 -- Simplify all edges up to 1 km
-SELECT SimplifyEdgeGeom('temp_topo', edge_id, 1000) FROM temp_topo.edge;
+SELECT SimplifyEdgeGeom('temp_topo', edge_id, 10000) FROM temp_topo.edge;
 
 -- Convert the TopoGeometries to Geometries for visualization
 UPDATE census_tracts_2015 

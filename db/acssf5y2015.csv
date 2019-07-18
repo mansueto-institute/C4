@@ -1,0 +1,18 @@
+B01001_001    ,  Total Population
+B01001A_001   ,  White Population
+B01001B_001   ,  Black Population
+B01001I_001   ,  Hispanic Population
+B16010_001    ,  Adult Population (>= 25)
+B16010_002    ,  Less than HS Grad (>= 25)
+B16010_015    ,  High School Graduate (>= 25)
+B16010_028    ,  Some College (>= 25)
+B16010_041    ,  College or Higher (>= 25)
+B19013_001    ,  Median Household Income
+B06012_001    ,  At-risk for Poverty
+B06012_002    ,  Population Below 100% of Poverty Line
+B05003_008E   ,  Male VAP
+B05003_019E   ,  Female VAP
+B05003B_008E  ,  Black Male VAP
+B05003B_019E  ,  Black Female VAP
+B05003I_008E  ,  Hispanic Male VAP
+B05003I_019E  ,  Hispanic Female VAP

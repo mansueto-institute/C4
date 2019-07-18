@@ -1,0 +1,31 @@
+DP02_0086E  , TOTAL_POP        ,  Total Population
+DP02_0092PE , FOREIGN_BORN     ,  Frac Foreign-born
+DP05_0072PE , WHITE            ,  Frac Non-Hispanic Whites
+DP05_0073PE , BLACK            ,  Frac Non-Hispanic Blacks
+DP05_0074PE , INDIAN           ,  Frac Non-Hispanic Indian and Alaskan
+DP05_0075PE , ASIAN            ,  Frac Non-Hispanic Asian
+DP05_0076PE , HAWAIIAN_PACIFIC ,  Frac Non-Hispanic Hawaiian or Pacific Islander
+DP05_0077PE , OTHER_RACE       ,  Frac Non-Hispanic Other Race
+DP05_0078PE , MULTIPLE_RACE    ,  Frac Non-Hispanic Multiple Races
+DP05_0066PE , HISPANIC         ,  Frac Hispanic 
+DP02_0066PE , HS               ,  Frac High-School Grad
+DP02_0067PE , BA               ,  Frac Bachelors 
+DP02_0065PE , ADV              ,  Frac Advanced Degree
+DP03_0119PE , POV              ,  Frac Poverty
+DP02_0037PE , UNMARRIED_BIRTHS ,  Frac Unmarried Births
+DP03_0005PE , UNEMP            ,  Frac Unemployed
+DP03_0007PE , OUT_OF_LF        ,  Frac Out of Labor Force
+DP03_0009PE , UNEMP_IN_LF      ,  Frac Unemployed but in Labor Force (Unemployment Rate)
+DP03_0022PE , WALKERS          ,  Frac commuters who walk
+DP03_0025E  , COMMUTE_TIME     ,  Commute time in minutes 
+DP03_0027PE , MANAGERS         ,  Frac Managerial Workers
+DP02_0004PE , MARRIED_HH       ,  Frac Married Couple Family Housesholds
+DP02_0008PE , FEMALE_HH        ,  Frac Female-Headed Households
+DP02_0079PE , SAME_HOUSE       ,  Frac Same House 1 Year Ago
+DP04_0047PE , RENTER_OCC       ,  Frac Renter-Occupied Housing
+DP04_0003PE , VACANT_UNIT      ,  Frac Vacant Housing Units
+DP05_0007PE , POP15_19         ,  Frac 15 to 19 yo
+DP05_0008PE , POP20_24         ,  Frac 20 to 24 yo
+DP03_0062E  , MHI              ,  Median HH Income
+DP03_0001E  , POP16_UP         ,  Population 16 and Over
+DP02_0101E  , xRECENT_IMMIG    ,  N Foreign, Entered US After 2010

@@ -5,8 +5,8 @@ cd tmp
 wget -r ftp://ftp2.census.gov/geo/tiger/GENZ2015/shp/cb_2015_*_tract_500k.zip 
 mv ftp2.census.gov/geo/tiger/GENZ2015/shp/cb_2015_* .
 for x in `ls *zip`; do unzip $x; done
- 
- 
+
+
 psql -d census -U jsaxon << EOD
   -- Shapefile type: Polygon
   -- Postgis type: MULTIPOLYGON[2]
@@ -45,14 +45,29 @@ psql -d census -U jsaxon << EOD
                                  DROP COLUMN name,
                                  DROP COLUMN lsad;
 
-  ALTER TABLE census_tracts_2015 RENAME COLUMN statefp  to state;
-  ALTER TABLE census_tracts_2015 RENAME COLUMN countyfp to county;
-  ALTER TABLE census_tracts_2015 RENAME COLUMN tractce  to tract;
+  ALTER TABLE census_tracts_2015 RENAME COLUMN statefp  TO state;
+  ALTER TABLE census_tracts_2015 RENAME COLUMN countyfp TO county;
+  ALTER TABLE census_tracts_2015 RENAME COLUMN tractce  TO tract;
+
+  ALTER TABLE census_tracts_2015 ADD COLUMN pop INT DEFAULT 0;
+  ALTER TABLE census_tracts_2015 ADD COLUMN black INT DEFAULT 0;
+  ALTER TABLE census_tracts_2015 ADD COLUMN hispanic INT DEFAULT 0;
+  ALTER TABLE census_tracts_2015 ADD COLUMN vap  INT DEFAULT 0;
+  ALTER TABLE census_tracts_2015 ADD COLUMN bvap INT DEFAULT 0;
+  ALTER TABLE census_tracts_2015 ADD COLUMN hvap INT DEFAULT 0;
   
   ALTER TABLE census_tracts_2015 ADD PRIMARY KEY (state, county, tract);
   
   ALTER TABLE census_tracts_2015 ADD centroid GEOMETRY;
   UPDATE census_tracts_2015 SET centroid = ST_Centroid(geom);
+
+  ALTER TABLE census_tracts_2015 ADD COLUMN area float;
+  UPDATE census_tracts_2015 SET area = ST_Area(ST_Transform(census_tracts_2015.geom, epsg)) FROM states WHERE state = fips;
+
+  ALTER TABLE census_tracts_2015 ADD COLUMN geoid BIGINT;
+  UPDATE census_tracts_2015 SET geoid = state::bigint * 1000000000 + county * 1000000 + tract;
+
+  ALTER TABLE census_tracts_2015 ADD geomsimp GEOMETRY;
 
 EOD
 
@@ -60,19 +75,5 @@ EOD
 cd ../
 
 ## rm -rf tmp
-
-
-# 1 2 4 5 6 8 9 10 11 12 13 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 44 45 46 47 48 49 50 51 53 54 55 56 60 66 69 72 78
-# 8 15 16 17 23 33 37 42 47 48
-
-psql -d census -U jsaxon < simplify_fn.sql
-
-for x in \
-  1 2 4 5 6 8 9 10 11 12 13 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 44 45 46 47 48 49 50 51 53 54 55 56 60 66 69 72 78
-  do
-  echo STATE ${x}
-  cat simplify_states.sql | sed "s/XXSTATEXX/$x/" > temp.sql
-  psql -d census -U jsaxon < temp.sql
-done
 
 
