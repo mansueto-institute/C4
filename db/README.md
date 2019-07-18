@@ -2,6 +2,8 @@
 
 This directory contains the scripts used to build the postgres database.  There are basically three steps to this, outlined below: importing geographies, simplifying them, and appending limited demographic data.
 
+The `../run.py` script for c4 downloads data from the database if it is not already cached
+
 ## Import
 
 I have used this database for many projects, and so there are scripts for importing many different Census geographies, here.
@@ -51,6 +53,7 @@ All data is needed to run c4 is cached in the `../shapes/` and `../demographics/
    that amount to just around 120 MB.
 Users will note note that in addition to the Census tract geographies (`??.shp`),
    there are also edge (`??_edges.shp`) and node (`??_node.shapefiles`).
+These explicit topologies are used in C4 to generate boundaries for some of the compactness measures. 
 The `??_info.csv` contain the current number of seats, FIPS code, and EPSG code for each state.
 (The similarly named `??_info.shp` shapefiles are deprecated but not removed;
   they also contain the state outline.)
