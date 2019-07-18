@@ -82,6 +82,10 @@ namespace c4 {
   typedef std::map<int, double> weight_map;
   typedef std::vector< std::pair<Cell*, double> > neighbor_map;
 
+  typedef std::map<int, int> universe_regime_map;
+  typedef std::map<std::string, int> regime_map;
+  typedef std::map<std::string, float> regime_weights;
+
   // Miniball types for Reock weights.
   typedef std::list<std::vector<double> >::const_iterator PointIterator; 
   typedef std::vector<double>::const_iterator CoordIterator;
@@ -112,8 +116,8 @@ namespace c4 {
   template <typename T> T clip(const T& n, T clipval);
 
   // Possible objective functions.
-  enum ObjectiveMethod {DISTANCE_A, DISTANCE_P, INERTIA_A, INERTIA_P, HULL_A, HULL_P, POLSBY, REOCK, EHRENBURG,
-                        PATH_FRAC, AXIS_RATIO, MEAN_RADIUS, DYN_RADIUS, HARM_RADIUS, ROHRBACH, EXCHANGE, POLSBY_W};
+  enum ObjectiveMethod {DISTANCE_A, DISTANCE_P, INERTIA_A, INERTIA_P, HULL_A, HULL_P, POLSBY, POLSBY_W, REOCK, EHRENBURG,
+                        PATH_FRAC, AXIS_RATIO, MEAN_RADIUS, DYN_RADIUS, HARM_RADIUS, ROHRBACH, EXCHANGE};
 
   // Potential radii for d2 or dist, and get_circle_coords
   enum RadiusType      {EQUAL_AREA, EQUAL_AREA_POP, EQUAL_CIRCUMFERENCE, SCC, LIC, HULL, POWER};
@@ -126,7 +130,7 @@ namespace c4 {
       Cell();
       Cell(const Cell&);
       Cell(int i, int p, double x, double y,
-           double a, weight_map wm, float edge_perim, bool is_split); // , std::string mp_wkt);
+           double a, weight_map wm, float edge_perim, bool is_split); 
 
       // Distance squared to a point.
       float d2(float xi, float yi) { return (x-xi)*(x-xi) + (y-yi)*(y-yi); }
@@ -193,7 +197,8 @@ namespace c4 {
       // Get an edge pointer for an edge id.
       Edge* get_edge(int edge_id);
 
-      // std::pair<Node*, Node*> get_cw_node(int reg);
+      // Evaluate the weight for matching regimes.
+      float regime_match_weight(Cell* c);
 
       int region;
       int id, pop;
@@ -203,6 +208,8 @@ namespace c4 {
       // IDs or pointers to neighbors.
       weight_map wm;
       neighbor_map nm;
+
+      regime_map rm;
 
       // Fixed quantities.
       float edge_perim;
@@ -224,6 +231,7 @@ namespace c4 {
       //   rather than the connectivity between cells (tracts).
       std::vector<Edge> edges;
       std::set<Node*> nodes;
+
 
   };
 
@@ -259,6 +267,7 @@ namespace c4 {
       double obj_hull       (Cell* add = 0, Cell* sub = 0, bool verbose = false);
       double obj_hull_p     (Cell* add = 0, Cell* sub = 0, bool verbose = false);
       double obj_polsby     (Cell* add = 0, Cell* sub = 0, bool verbose = false);
+      double obj_polsby_w   (Cell* add = 0, Cell* sub = 0, bool verbose = false);
       double obj_path_frac  (Cell* add = 0, Cell* sub = 0, bool verbose = false);
       double obj_ehrenburg  (Cell* add = 0, Cell* sub = 0, bool verbose = false);
       double obj_axis_ratio (Cell* add = 0, Cell* sub = 0, bool verbose = false);
@@ -294,6 +303,7 @@ namespace c4 {
 
       // Border length
       double sumw_border;
+      double sumww_border;
 
       // Moments of inertia.
       double Ip, Ia;
@@ -376,6 +386,11 @@ namespace c4 {
       void add_edge(int cell_id, int edge_id, int nodea, int nodeb);
       void add_node(int node_id, float x, float y);
       void add_node_edge(int node_id, int edge_id);
+
+      // New regimes.
+      static regime_weights urwm;
+      static float regime_product;
+      void add_regime(std::string name, universe_regime_map rm, float scale_regime, float scale_regime_perim);
 
       // Coordinates of all circles.
       std::pair<std::pair<float, float>, float> get_circle_coords(size_t rid, RadiusType rt);

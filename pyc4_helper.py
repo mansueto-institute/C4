@@ -2,17 +2,21 @@ import os, sys
 from netrc import netrc
 
 if os.getenv("GMD_PASSWD") and os.getenv("GMD_USER"):
-  user, passwd = os.getenv("GMD_USER"), os.getenv("GMD_PASSWD")
-elif netrc().authenticators("harris"):
-  user, acct, passwd = netrc().authenticators("harris")
-else: user, acct, passwd = None, None, None
+    user, passwd = os.getenv("GMD_USER"), os.getenv("GMD_PASSWD")
+
+else:
+
+    try:
+        user, acct, passwd = netrc().authenticators("harris")
+    except:
+        user, acct, passwd = None, None, None
 
 import matplotlib as mpl
 mpl.use('Agg')
+
 import matplotlib.pyplot as plt
 plt.ioff()
 
-import matplotlib.pyplot as plt
 from matplotlib.colors import Normalize
 from matplotlib import ticker
 
@@ -51,7 +55,7 @@ def ens_data(usps, bgroup):
 
   ens_dir("shapes/")
   ens_dir("demographic/")
-  cache_stateinfo(usps)
+  cache_stateinfo(usps, bgroup)
   cache_shapefile(usps, bgroup)
   cache_edge_file(usps, bgroup)
   cache_node_file(usps, bgroup)
@@ -65,6 +69,7 @@ pyc4_methods = {"reock"       : pyc4.ObjectiveMethod.REOCK,
                 "inertia_a"   : pyc4.ObjectiveMethod.INERTIA_A,
                 "inertia_p"   : pyc4.ObjectiveMethod.INERTIA_P,
                 "polsby"      : pyc4.ObjectiveMethod.POLSBY,
+                "polsby_w"    : pyc4.ObjectiveMethod.POLSBY_W,
                 "hull_a"      : pyc4.ObjectiveMethod.HULL_A,
                 "hull_p"      : pyc4.ObjectiveMethod.HULL_P,
                 "path_frac"   : pyc4.ObjectiveMethod.PATH_FRAC,
@@ -83,6 +88,7 @@ pyc4_formal  = {
                 "inertia_a"   : "Moment of Inertia: Area",
                 "inertia_p"   : "Moment of Inertia: Pop.",
                 "polsby"      : "Isoperimeter Quotient",
+                "polsby_w"    : "Weighted Polsby",
                 "hull_a"      : "Convex Hull Area Ratio",
                 "hull_p"      : "Convex Hull Pop. Ratio",
                 "ehrenburg"   : "Inscribed Circles",
@@ -104,6 +110,7 @@ pyc4_short  = {
                "inertia_a"   : "InertiaArea",
                "inertia_p"   : "InertiaPop",
                "polsby"      : "IPQ",
+               "polsby_w"    : "WIPQ",
                "hull_a"      : "HullArea",
                "hull_p"      : "HullPop",
                "ehrenburg"   : "InscrCircle",
@@ -145,7 +152,7 @@ def get_state_info(usps):
    return pd.read_csv(stateinfo.format(usps.lower()) + ".csv").ix[0]
 
 
-def cache_stateinfo(usps):
+def cache_stateinfo(usps, bgroup):
 
    filename = stateinfo.format(usps.lower())
 
@@ -195,7 +202,7 @@ def cache_shapefile(usps, bgroup = False):
                                           geom_col='geometry', crs = from_epsg(state["epsg"]))
 
    geo_df["id"] = geo_df.index
-   geo_df[["id", "a", "pop", "x", "y", "split", "geometry"]].to_file(filename)
+   geo_df[["id", "county", "a", "pop", "x", "y", "split", "geometry"]].to_file(filename)
 
 
 
@@ -368,6 +375,21 @@ def plot_map(gdf, filename, crm, hlt = None, shading = "district", figsize = 10,
       cb.update_ticks()
 
       if hlt: gdf[gdf["H"] == 1].plot(facecolor = "grey", alpha = 0.1, linewidth = 0.05, ax = ax)
+
+    elif "counties" in shading:
+
+      counties = gdf.dissolve("county").reset_index()
+
+      # ax = counties.plot(column = "county", categorical = True,
+      #                    cmap = "nipy_spectral", alpha = 0.5, linewidth = 0, figsize = fs)
+
+      # ax = dis.set_geometry(dis.boundary).plot(edgecolor = "black", linewidth = 2.5, figsize = fs)
+      ax = dis.plot(column = "C", cmap = "nipy_spectral", alpha = 0.5, edgecolor = "black", linewidth = 2.5, figsize = fs)
+      dis.set_geometry(dis.boundary).plot(edgecolor = "black", linewidth = 2.5, ax = ax)
+
+      county_bounds = gpd.GeoDataFrame(geometry = gpd.GeoSeries(crs = counties.crs, data = [counties.boundary.unary_union]))
+      # county_bounds.plot(edgecolor = "black", linewidth = 0.4, linestyle = "-", ax = ax)
+      county_bounds.plot(edgecolor = "white", linewidth = 0.4, linestyle = "-", ax = ax)
 
     elif "density" in shading:
       ax = gdf.plot(column = "density", cmap = "gray", scheme = "quantiles", k = 9, alpha = 0.8, figsize = fs, linewidth = 0)

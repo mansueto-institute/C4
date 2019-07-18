@@ -16,8 +16,8 @@ from libcpp.unordered_set cimport unordered_set
 cdef extern from "c4.h" namespace "c4" :
 
     cpdef enum ObjectiveMethod:
-        DISTANCE_A, DISTANCE_P, INERTIA_A, INERTIA_P, HULL_A, HULL_P, POLSBY, REOCK, EHRENBURG,
-        PATH_FRAC, AXIS_RATIO, MEAN_RADIUS, DYN_RADIUS, HARM_RADIUS, ROHRBACH, EXCHANGE, POLSBY_W
+        DISTANCE_A, DISTANCE_P, INERTIA_A, INERTIA_P, HULL_A, HULL_P, POLSBY, POLSBY_W, REOCK, EHRENBURG,
+        PATH_FRAC, AXIS_RATIO, MEAN_RADIUS, DYN_RADIUS, HARM_RADIUS, ROHRBACH, EXCHANGE
 
     cpdef enum RadiusType:
         EQUAL_AREA, EQUAL_AREA_POP, EQUAL_CIRCUMFERENCE, SCC, LIC, HULL, POWER
@@ -55,10 +55,12 @@ cdef extern from "c4.h" namespace "c4" :
         vector[Cell*] cells
         vector[Region*] regions;
 
+
         void add_cell(Cell)
         void add_edge(int, int, int, int)
         void add_node(int, float, float)
         void add_node_edge(int, int)
+        void add_regime(string, map[int, int], float, float)
         map[int, int] cell_region_map()
         map[int, int] get_best_solution()
         vector[int] border_cells(int, int) 
@@ -172,6 +174,10 @@ cdef class universe:
 
     def add_node_edge(self, int nid, int eid):
         self.c_univ.add_node_edge(nid, eid)
+        
+    def add_regime(self, name, map[int, int] rm, float scale, float scale_perim):
+        cdef string cname = str.encode(name)
+        self.c_univ.add_regime(cname, rm, scale, scale_perim)
 
     def assign_to_zero(self):
         self.c_univ.assign_to_zero()

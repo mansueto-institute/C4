@@ -13,7 +13,12 @@ import operator
 
 import time
 
-def load_data(state, method, seats = None, bgroup = False):
+import warnings
+if not sys.warnoptions:
+    warnings.simplefilter("ignore")
+
+
+def load_data(state, method, seats = None, bgroup = False, scale_regimes = 1, scale_regime_perimeters = 1):
 
   ens_data(state, bgroup)
 
@@ -56,6 +61,11 @@ def load_data(state, method, seats = None, bgroup = False):
                          {n:w for n, w in zip(c.ps_n, c.ps_w)},
                          c.edge_perim, c.split))
 
+  # Regime weight and node assignments, for weighted polsby
+  if math.fabs(scale_regimes - 1) > 1e-5 or \
+     math.fabs(scale_regime_perimeters -1 ) > 1e-5:
+    u.add_regime("county", gdf.county.to_dict(), 
+                 scale_regimes, scale_regime_perimeters)
   
   ### Add the edges....
   edf = pd.read_csv(edge_file.format(state + tag) + ".csv")
@@ -63,8 +73,8 @@ def load_data(state, method, seats = None, bgroup = False):
   for ei, e in edf.iterrows():
 
     u.add_edge(e.rn, e.eid, e.nodea, e.nodeb)
-  
-  
+    
+
   ### Add the nodes....
   ndf = pd.read_csv(node_file.format(state + tag) + ".csv")
   node = -1
@@ -119,9 +129,10 @@ def point_df(u, point = True):
 
 def main(state, seed, method, seats, ncycles, split_restart, power_restart, niter, nloops, tol, ctol, conv_iter, init, output, write, 
          grasp, allow_trades, destrand_inputs, destrand_min, destrand_max, tabu_length,
-         circle, ring, point, print_init, no_plot, shading, borders, verbose, bgroup):
+         circle, ring, point, print_init, no_plot, shading, borders, verbose, bgroup, 
+         scale_regimes, scale_regime_perimeters):
 
-  u, gdf = load_data(state, method, seats, bgroup)
+  u, gdf = load_data(state, method, seats, bgroup, scale_regimes, scale_regime_perimeters)
 
   u.RANDOM       = grasp 
   u.TRADE        = allow_trades
@@ -237,6 +248,9 @@ if __name__ == "__main__":
   parser.add_argument("-m", "--method",    default = "dist_a", choices = pyc4_formal, type = str)
   parser.add_argument("-b", "--bgroup",    action  = "store_true")
 
+  parser.add_argument("--scale_regimes",           default = 1, type = float)
+  parser.add_argument("--scale_regime_perimeters", default = 1, type = float)
+
   # Looping parameters.
   parser.add_argument("-c", "--ncycles",   default = 1, type = int, help = "Number of restarts (split/merge)")
   parser.add_argument("-l", "--nloops",    default = 1, type = int, help = "Loops: number of times to run iter")
@@ -273,7 +287,7 @@ if __name__ == "__main__":
   args = parser.parse_args()
 
   if not args.write: args.write = "{}/{}/s{:03d}".format(args.state, args.method, args.seed)
-  if "all" in [s.lower() for s in args.shading]: args.shading = ["district", "target", "density", "scores"]
+  if "all" in [s.lower() for s in args.shading]: args.shading = ["district", "target", "density", "scores", "counties"]
   if "none" in [s.lower() for s in args.shading]: args.shading = []
   if args.nloops == 0: method = args.init
 

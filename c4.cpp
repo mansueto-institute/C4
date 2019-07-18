@@ -28,7 +28,9 @@ namespace c4 {
 
   static std::map<ObjectiveMethod, RadiusType> obj_radius = {{DISTANCE_A, EQUAL_AREA}, {DISTANCE_P, EQUAL_AREA_POP},
                                                              {INERTIA_A, EQUAL_AREA}, {INERTIA_P, EQUAL_AREA_POP}, 
-                                                             {HULL_A, HULL}, {HULL_P, HULL}, {POLSBY, EQUAL_CIRCUMFERENCE},{REOCK, SCC}, 
+                                                             {HULL_A, HULL}, {HULL_P, HULL},
+                                                             {POLSBY, EQUAL_CIRCUMFERENCE}, {POLSBY_W, EQUAL_CIRCUMFERENCE}, 
+                                                             {REOCK, SCC}, 
                                                              {EHRENBURG, LIC}, {POLSBY_W, EQUAL_CIRCUMFERENCE}, 
                                                              {PATH_FRAC, EQUAL_AREA}, {AXIS_RATIO, EQUAL_AREA}};
 
@@ -37,17 +39,14 @@ namespace c4 {
   Cell::Cell(const Cell &c) 
     : region(-1), id(c.id), pop(c.pop), x(c.x), y(c.y), area(c.area), wm(c.wm),
       edge_perim(c.edge_perim), is_univ_edge(c.is_univ_edge), is_split(c.is_split), split_neighbor(c.split_neighbor),
-      pt(c.pt) {} // , poly(c.poly){}
+      pt(c.pt) {} 
 
-  Cell::Cell(int i, int p, double x, double y,
-             double a, weight_map wm,
-             float ep, bool split = false)
-    : region(-1), id(i), pop(p), x(x), y(y), area(a), wm(wm), edge_perim(ep),
+  Cell::Cell(int i, int p, double x, double y, double a, weight_map wm, float ep, bool split = false)
+    : region(-1), id(i), pop(p), x(x), y(y), area(a), wm(wm), edge_perim(ep), 
       is_univ_edge(ep > 1e-3), is_split(split), split_neighbor(false), pt(x, y) {
 
     if (!p) pop = 1; // N.B. that we're setting the minimum population per cell to 1!!
 
-    // boost::geometry::read_wkt(mp_wkt, poly);  
   }
 
 
@@ -528,20 +527,33 @@ namespace c4 {
 
   }
 
+  float Cell::regime_match_weight(Cell* c) {
+
+    float rweight(1);
+    for (auto w : rm) {
+      if (w.second != c->rm[w.first])
+        rweight *= Universe::urwm[w.first];
+    }
+
+    return rweight;
+
+  }
+
+
   Region::Region() 
-    : id(0), pop(0), ncells(0), area(1e-6), xctr(0), yctr(0), xpctr(0), ypctr(0), sumw_border(0),
+    : id(0), pop(0), ncells(0), area(1e-6), xctr(0), yctr(0), xpctr(0), ypctr(0), sumw_border(0), sumww_border(0),
       Ip(0), Ia(0), has_topo(false), eps_scc(1e7), x_scc(0), y_scc(0), r2_scc(0),
       eps_lic(2), x_lic(0), y_lic(0), r2_lic(0), x_pow(0), y_pow(0), r2_pow(0)
   {}
 
   Region::Region(int rid) 
-    : id(rid), pop(0), ncells(0), area(1e-6), xctr(0), yctr(0), xpctr(0), ypctr(0), sumw_border(0),
+    : id(rid), pop(0), ncells(0), area(1e-6), xctr(0), yctr(0), xpctr(0), ypctr(0), sumw_border(0), sumww_border(0),
       Ip(0), Ia(0), has_topo(false), eps_scc(1e7), x_scc(0), y_scc(0), r2_scc(0), 
       eps_lic(2), x_lic(0), y_lic(0), r2_lic(0), x_pow(0), y_pow(0), r2_pow(0)
   {}
 
   Region::Region(int rid, Cell* c) 
-    : id(rid), pop(0), ncells(0), area(1e-6), xctr(c->x), yctr(c->y), xpctr(c->x), ypctr(c->y), sumw_border(0),
+    : id(rid), pop(0), ncells(0), area(1e-6), xctr(c->x), yctr(c->y), xpctr(c->x), ypctr(c->y), sumw_border(0), sumww_border(0),
       Ip(0), Ia(0), has_topo(false), eps_scc(1e7), x_scc(0), y_scc(0), r2_scc(0),
       eps_lic(2), x_lic(0), y_lic(0), r2_lic(0), x_pow(0), y_pow(0), r2_pow(0)
   { add_cell(c, true); }
@@ -636,6 +648,7 @@ namespace c4 {
     if (c->is_univ_edge) {
       int_borders.insert(c);
       sumw_border += c->edge_perim;
+      sumww_border += c->edge_perim; // * Universe::regime_product;
     }
 
     for (auto n : c->nm) {
@@ -655,6 +668,7 @@ namespace c4 {
       if (n.first->region != id) {
         if (n.second > 0) ext_borders.insert(n.first); // ROOK
         sumw_border += n.second;
+        sumww_border += n.second * c->regime_match_weight(n.first);
 
       // If the cell's neighbor IS a member of
       // the destination region, then this border was 
@@ -662,6 +676,7 @@ namespace c4 {
       // to sumw_border.
       } else {
         sumw_border -= n.second;
+        sumww_border -= n.second * c->regime_match_weight(n.first);
 
         // if, further, that neighbor has no other connections
         // to the outside world, then remove it from int_borders.
@@ -765,7 +780,10 @@ namespace c4 {
       }
     }
 
-    if (c->is_univ_edge) sumw_border -= c->edge_perim;
+    if (c->is_univ_edge) {
+      sumw_border -= c->edge_perim;
+      sumww_border -= c->edge_perim; // * Universe::regime_product;
+    }
 
     // Iterate over the MOVING cell's neighbors.
     for (auto const& n : c->nm) {
@@ -777,6 +795,7 @@ namespace c4 {
       // to the source, erase it from the border.
       if (n.first->region != id) {
         sumw_border -= n.second;
+        sumww_border -= n.second * c->regime_match_weight(n.first);
 
         bool indep_connections = false;
         for (auto nn : n.first->nm) {
@@ -799,6 +818,7 @@ namespace c4 {
         int_borders.insert(n.first);
 
         sumw_border += n.second;
+        sumww_border += n.second * c->regime_match_weight(n.first);
       }
     }
 
@@ -1112,17 +1132,20 @@ namespace c4 {
 
     area = 0;
     sumw_border = 0;
+    sumww_border = 0;
     for (auto c : cells) {
       area += c->area;
 
       if (c->is_univ_edge) {
         sumw_border += c->edge_perim;
+        sumww_border += c->edge_perim; // * Universe::regime_product;
         int_borders.insert(c);
       }
 
       for (const auto n : c->nm) {
         if (n.first->region != id) {
           sumw_border += n.second;
+          sumww_border += n.second * c->regime_match_weight(n.first);
           int_borders.insert(c);
           ext_borders.insert(n.first);
         }
@@ -1398,6 +1421,58 @@ namespace c4 {
 
     cout << "Edge " << edge_id << " did not find expected cell " << cell_id << endl;
     throw std::runtime_error(std::string("Failed to find cell for edge!"));
+  }
+
+  regime_weights Universe::urwm = regime_weights();
+  float Universe::regime_product = 1.0;
+  void Universe::add_regime(std::string name, universe_regime_map urm, float scale_regime, float scale_regime_perim) {
+
+    regime_product *= scale_regime_perim;
+    urwm[name] = scale_regime_perim;
+
+    for (auto r : urm) {
+      for (auto& c : cells) {
+        if (r.first == c->id) {
+          // cout << "cell: " << c->id << "  regime (county): " << r.second << "  regime member cell: " << r.first << "   reg_scale=" << scale_regime << "  reg_perim_scale=" << scale_regime_perim << endl;;
+          c->rm[name] = r.second;
+        }
+      }
+    }
+
+    // Now scale all cells WRT the population centroids.
+    if (fabs(scale_regime - 1) > 1e-5) { 
+
+      // Make sure these are all initialized appropriately
+      std::map<int, float> regime_pop, regime_pctr_x, regime_pctr_y;
+      for (auto r : urm) { 
+        regime_pop   [r.second] = 0;
+        regime_pctr_x[r.second] = 0;
+        regime_pctr_y[r.second] = 0;
+      }
+
+      // Get the weighted sums.
+      for (auto& c : cells) {
+        regime_pop   [c->rm[name]] += c->pop; 
+        regime_pctr_x[c->rm[name]] += c->pop * c->x;
+        regime_pctr_y[c->rm[name]] += c->pop * c->y;
+      }
+
+      // Divide by the populations:
+      for (auto regime : regime_pop) {
+        regime_pctr_x[regime.first] /= regime.second;
+        regime_pctr_y[regime.first] /= regime.second;
+      }
+
+
+      // And shift them all from that population center.
+      for (auto& c : cells) {
+        c->x = regime_pctr_x[c->rm[name]] + scale_regime * (c->x - regime_pctr_x[c->rm[name]]);
+        c->y = regime_pctr_y[c->rm[name]] + scale_regime * (c->y - regime_pctr_y[c->rm[name]]);
+      }
+    }
+
+    return;
+
   }
 
   void Universe::add_node(int node_id, float x, float y) {
@@ -1832,10 +1907,12 @@ namespace c4 {
     for (auto const& rA : regions) {
     
       bool moved = true;
+
       int iter = 0;
       int ntransfers = 0;
       while (moved) {
         iter++;
+
         moved = false;
 
         for (auto const& b : rA->ext_borders) {
@@ -1845,6 +1922,7 @@ namespace c4 {
 
           if (rA->d2(b, RadiusType::POWER) - rA->r2_pow >
               rB->d2(b, RadiusType::POWER) - rB->r2_pow) continue;
+
 
           // We can remove up to five in strands, 
           // so we need to start with a buffer.
@@ -1891,7 +1969,9 @@ namespace c4 {
 
     for (int i = 0; i < niter && best_tol > ptol; i++) {
 
-      if (verbose && !(i % 100)) cout << "Iteration " << i << ", tolerance now " << best_tol << endl;
+      if (verbose && !(i % 100)) { 
+        cout << "\rIteration " << i << ", tolerance now " << best_tol << "             " << std::flush;
+      }
 
       voronoi_classify();
 
@@ -1929,9 +2009,22 @@ namespace c4 {
         best_tol = max_dtol;
         best_avg_tol = avg_dtol;
         best_soln = cell_region_map();
-        if (verbose) cout << "Iteration " << i << ", tolerance now " << best_tol << endl;
+        if (verbose) {
+          cout << "\rIteration " << i << ", tolerance now " << best_tol << "             " << std::flush;
+        }
       }
+
+      if (!(i % 100)) {
+        for (auto rit : regions) {
+          if (!rit->contiguous()) {
+            force_contiguity(rit->id);
+            cout << "\rWARNING ::: in power diagram init, region " << rit->id << " is not contiguous!!" << endl;
+          }
+        }
+      }
+
     }
+    if (verbose) cout << endl;
 
     load_partition(best_soln);
 
@@ -2344,6 +2437,7 @@ namespace c4 {
       case ObjectiveMethod::HULL_A:      return obj_hull       (add, sub, verbose);
       case ObjectiveMethod::HULL_P:      return obj_hull_p     (add, sub, verbose);
       case ObjectiveMethod::POLSBY:      return obj_polsby     (add, sub, verbose);
+      case ObjectiveMethod::POLSBY_W:    return obj_polsby_w   (add, sub, verbose);
       case ObjectiveMethod::PATH_FRAC:   return obj_path_frac  (add, sub, verbose);
       case ObjectiveMethod::EHRENBURG:   return obj_ehrenburg  (add, sub, verbose);
       case ObjectiveMethod::AXIS_RATIO:  return obj_axis_ratio (add, sub, verbose);
@@ -2352,7 +2446,6 @@ namespace c4 {
       case ObjectiveMethod::HARM_RADIUS: return obj_harm_radius(add, sub, verbose);
       case ObjectiveMethod::ROHRBACH:    return obj_rohrbach   (add, sub, verbose);
       case ObjectiveMethod::EXCHANGE:    return obj_exchange   (add, sub, verbose);
-      case ObjectiveMethod::POLSBY_W:    // weight by population -- units... ???
 
       default:
         cout << "Not yet implemented." << endl;
@@ -2727,6 +2820,48 @@ namespace c4 {
 
     // return polsby_mod - polsby_nom;
     return 4 * M_PI * area_mod / perim_mod / perim_mod;
+
+  }
+
+
+  // Basically the same as Polsby, but allowing for regime weights.
+  double Region::obj_polsby_w(Cell* add, Cell* sub, bool verbose) {
+
+    if (!add && !sub) return 4 * M_PI * area / sumww_border / sumww_border; // 4*pi*A/P^2
+
+    float area_mod(area), perim_mod(sumww_border);
+
+    // Iterate over the MOVING cell's neighbors.
+    // If we're adding this cell, outside neighbors 
+    // make the border longer
+    if (add) { 
+      area_mod += add->area;
+      if (add->is_univ_edge) perim_mod += add->edge_perim; // * Universe::regime_product;
+      for (auto const& n : add->nm) {
+        if (n.first->region != id) perim_mod += n.second * add->regime_match_weight(n.first);
+        else                       perim_mod -= n.second * add->regime_match_weight(n.first);
+      }
+    }
+
+    // while it's the inverse for subtracting.
+    if (sub) {
+      area_mod -= sub->area;
+      if (sub->is_univ_edge) perim_mod -= sub->edge_perim; // * Universe::regime_product;
+      for (auto const& n : sub->nm) {
+        if (n.first->region != id) perim_mod -= n.second * sub->regime_match_weight(n.first);
+        else                       perim_mod += n.second * sub->regime_match_weight(n.first);
+      }
+    }
+
+
+    double polsby_mod = 4 * M_PI * area_mod / perim_mod / perim_mod;
+
+    if (verbose) {
+      cout << (add?"A":"") << (sub?"S":"") << "     mod=" << polsby_mod << "=" << " :: A=" << area_mod << " P=" << perim_mod << endl;
+    }
+
+    // return polsby_mod - polsby_nom;
+    return polsby_mod;
 
   }
 
@@ -3105,7 +3240,8 @@ namespace c4 {
     // As in greedy, this is constant, but we want a 0 baseline.
     if (om == ObjectiveMethod::HULL_A    || om == ObjectiveMethod::HULL_P || 
         om == ObjectiveMethod::INERTIA_A || om == ObjectiveMethod::INERTIA_P ||
-        om == ObjectiveMethod::ROHRBACH  || om == ObjectiveMethod::POLSBY) {
+        om == ObjectiveMethod::ROHRBACH  || om == ObjectiveMethod::POLSBY ||
+        om == ObjectiveMethod::POLSBY_W) {
       curr_obj = ir->obj(om);
     }
 
@@ -3138,7 +3274,8 @@ namespace c4 {
         float delta(0);
         if (om == ObjectiveMethod::HULL_A    || om == ObjectiveMethod::HULL_P    ||
             om == ObjectiveMethod::INERTIA_A || om == ObjectiveMethod::INERTIA_P ||
-            om == ObjectiveMethod::ROHRBACH  || om == ObjectiveMethod::POLSBY) {
+            om == ObjectiveMethod::ROHRBACH  || om == ObjectiveMethod::POLSBY    ||
+            om == ObjectiveMethod::POLSBY_W) {
           delta = - (ir->obj(om, eb, ib) - curr_obj + er->obj(om, ib, eb) - er->obj(om));
         } else {
 
