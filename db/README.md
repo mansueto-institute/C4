@@ -44,3 +44,12 @@ In short, it is expensive and unnecessary to create the topology for the United 
 Some ACS and Decennial Census data are appended to the geometries.
 The variables most used in this study are in the 2015 5-year estimes, listed in `acssf5y2015.csv`.
 These were loaded into the db using `add_acs_tract_vars.py`.
+
+## Caching Database Data
+
+All data is needed to run c4 is cached in the `../shapes/` and `../demographics/` directories,
+   that amount to just around 120 MB.
+Users will note note that in addition to the Census tract geographies (`??.shp`),
+   there are also edge (`??_edges.shp`) and node (`??_node.shapefiles`).
+The `??_info.shp` shapefiles are deprecated but not removed in favor of `??_info.csv`,
+  which contains simply the current number of seats, FIPS code, and EPSG code for each state.
