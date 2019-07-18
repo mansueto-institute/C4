@@ -1,6 +1,6 @@
 # Database Build Scripts
 
-This directory contains the scripts used to build the postgres database 
+This directory contains the scripts used to build the postgres database.  There are basically three steps to this, outline below -- importing geographies, simplifying them, and appending limited demographic data.
 
 ## Import
 
