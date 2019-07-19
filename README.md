@@ -22,7 +22,35 @@ In districting parlance, this means states, legislative districts, and Census tr
 The Universer class (mainly) is exposed to python through cython.
 All plotting and most data management happens in python.
 
-## Build Instructions
+## Running C4 as a Docker Container (Simple!)
+
+To facilitate use and replication, all of the dependences and the built software are included in a docker container,
+  hosted on [DockerHub](https://cloud.docker.com/repository/docker/jamessaxon/c4).
+The container is about 2GB.
+Running from scratch is as simple as:
+```
+docker run -v $(pwd)/res/:/C4/res/ -e STATE=pa -e SEED=2 -e METHOD=POWER --rm -it  jamessaxon/c4:replication
+```
+
+This means:
+* Run the c4 software as in this image (`docker run [...] jamessaxon/c4:replication`)
+* Mount the local directory called `res/` to `/C4/res/` in the container.  Results written here will be available when the jobs complets. You should *make the `res/` directory!!*
+* Environment variables / arguments: simulate districts for the `STATE` of Pennsylvania (USPS code `pa`), with `SEED` of 2 (any number, but < 1000 will format better), using the `POWER` diagram `METHOD`.  You can also 
+   * The possible methods are `POWER DIST RADII IPQ CIRCLES HULL_P HULL_A INERTIA AXIS SPLIT PATH_FRAC`.  Several of these run several methods in sequence.  For instance `CIRCLES` runs the `exchange`, `reock` and `ehrenburg` methods, and `RADII` includes `rohrbach`, `harm_radius`, `mean_radius`, and `dyn_radius `.
+   * The SHADING options are: district (just colors), target (ratio to target population), density (show population centers), scores (show spatial scores), counties (overlay county geometries), and "all" or "none".  The default is none.
+* Remove (`--rm`) the container when it exits.
+* Run interactively and allow input (`-it`).
+Of course, you can also run interactively with `/bin/bash` and just `cd` to `C4` to use `run.py` with all of its arguments.
+(If so, skip to [Running C4](#running-c4), below.)
+
+For large-scale jobs, I run C4 as a Docker container on AWS.
+The Dockerfile changes very slightly, with AWS keys and `s3` tools (see [DockerfileAWS](DockerfileAWS)).
+The scripts for [building the container](docker_build.sh) and [launching jobs](aws_launch.sh) 
+  are also in this directory (though they won't run, without dependencies or passwords!).
+
+## Running C4 with a Local Install
+
+### Building
 
 Some components require Armadillo, which in turn requires OpenBlas:
 * OpenBLAS: First [download](https://github.com/xianyi/OpenBLAS/zipball/master) it, then `make && sudo make install`.  (Yes, it's that easy!)
@@ -31,14 +59,12 @@ Some components require Armadillo, which in turn requires OpenBlas:
   * Mac [download](http://arma.sourceforge.net/download.html) then `cmake . && make && sudo make install`
   
 You will also need all of the compiled and python packages listed in the [Dockerfile](Dockerfile):
-* Compiled: `libgeos-dev`, `libgdal-dev`, `python3-gdal`, `gdal-bin`
-* Python `cython`, `matplotlib`, `fiona`, `pysal`, `geopandas`, `psycopg2`
-GEOS and GDAL can be very finnicky WRT OS, so this is on you.
+* Compiled: `libboost-all-dev` `libgeos-dev`, `libgdal-dev`, `python3-gdal`, `gdal-bin`
+* Python: `cython`, `matplotlib`, `fiona`, `pysal`, `geopandas`, `psycopg2`
+GEOS and GDAL can be finnicky with respect to the OS, so this installation is on the user.  
+However, Anaconda has made it much easier.  On relatively modern (few year-old) Macs, `conda install geopandas pysal cython psycopg2 libboost` seems to give you everything you need.
   
 Then to build **C4**, it's just `python setup.py build_ext --inplace`.
-
-#### Docker
-For large-scale jobs, I run C4 as a Docker container on AWS.  You can check out the [Dockerfile](Dockerfile), as well as the [build](docker_build.sh) and [launch](aws_launch.sh) scripts I use for this.
 
 ## Running C4
 
@@ -64,9 +90,19 @@ export STATE=pa; export SEED=300; export METHOD=IPQ; ./run_iter.sh
 ```
 which will run Pennsylvania for seed 300 with the Isoperimeter quotient method.
 
+## Outputs
+
+Three types of files will be written to `res/` (your local directory).
+Note again that, running with docker, the directory must be mounted to a local file.
+1. JSON files containing a summary of the simulation will be written to `res/json/[state usps]_[method]_s[seed]_c[cycle].json`.  These files contain a summary of the entire run: the tract to district assignment, the spatial parameters of the districts, the partisan voting (if available for that state), race and ethnicity, voter balance (`PopulationDeviation`), the method used, and so forth (run `jq keys file.json` to see this).  These data 
+2. CSV files containing simply the tract to district assignment.   This is just a two-column assignment: row number (equivalent to county + tract geoid, though perhaps a poor technical choice) and the district.  This will be written to `res/[state usps]/[method]/s[seed]/c[cycle]/final.csv`. 
+3. Within that directory, you will also `final_*.pdf`, which are maps of the outcome.  There will be one map for each shading method used.
+
+
 ## Browsing Maps:
 
-If you're more interested in the results, just head over to my webspace to play with the outputs in an interactive map:
+If you're more interested in the results,
+  just head over to my webspace to play with the outputs in an interactive map:
 
 http://saxon.harris.uchicago.edu/redistricting_map/
 
