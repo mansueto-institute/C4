@@ -30,11 +30,12 @@ elif [[ "$METHOD" == "IPQ" ]]; then
 # ./run.py -s ${s} -m polsby_w     -t 0.01  -x${x} -n$N -c$C --conv_iter 1000 --destrand_min 5 --destrand_max 50 --tabu_length 10 --allow_trades  --shading $shading --ctol 0.02
 elif [[ "$METHOD" == "CIRCLES" ]]; then
 
+  ./run.py -s ${s} -m exchange     -t 0.005 -x${x} -n$N -c$C --conv_iter 500  --destrand_min 5 --destrand_max 50                                  --shading $shading  
+
   # These both allow trades to move cells closer to the center...
   ./run.py -s ${s} -m ehrenburg    -t 0.005 -x${x} -n$N -c$C --conv_iter 500  --ctol 0.02 \
                                                                               --destrand_min 10 --destrand_max 50 --allow_trades --shading $shading -o lic -p lic -r -v 1
   ./run.py -s ${s} -m reock        -t 0.01  -x${x} -n$N -c$C --conv_iter 500  --destrand_min 5 --destrand_max 50 --allow_trades                   --shading $shading  -o scc -p scc
-  ./run.py -s ${s} -m exchange     -t 0.005 -x${x} -n$N -c$C --conv_iter 500  --destrand_min 5 --destrand_max 50                                  --shading $shading  
 elif [[ "$METHOD" == "HULL_P" ]]; then
   ./run.py -s ${s} -m hull_p       -t 0.01  -x${x} -n$N -c$C --conv_iter 500  --destrand_min 3 --destrand_max 50 --allow_trades                   --shading $shading  -o hull 
 elif [[ "$METHOD" == "HULL_A" ]]; then
