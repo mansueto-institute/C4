@@ -40,6 +40,7 @@ This means:
    * The SHADING options are: district (just colors), target (ratio to target population), density (show population centers), scores (show spatial scores), counties (overlay county geometries), and "all" or "none".  The default is none.
 * Remove (`--rm`) the container when it exits.
 * Run interactively and allow input (`-it`).
+
 Of course, you can also run interactively with `/bin/bash` and just `cd` to `C4` to use `run.py` with all of its arguments.
 (If so, skip to [Running C4](#running-c4), below.)
 
