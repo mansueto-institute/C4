@@ -11,7 +11,7 @@ N=10000
 shading="none"
 # shading="target district"
 
-# POWER DIST RADII IPQ CIRCLES HULL INERTIA AXIS SPLIT PATH_FRAC
+# POWER DIST RADII IPQ CIRCLES HULL_P HULL_A INERTIA AXIS SPLIT PATH_FRAC
 
 if [[ "$METHOD" == "SPLIT" ]]; then 
   ./run.py -s ${s} -i split -l0 --print_init -w ${s}/split/s001 --shading $shading

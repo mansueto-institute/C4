@@ -1,10 +1,9 @@
 # <img src="img/c4_logo.png" width=25px> C4: Contiguity-Constrained Clustering in C++
 
-C4 is a collection of three c++ classes exposed to python through cython.
-The goal is to perform fast, iterative, contiguity-preserving optimization
+The goal of C4 is to perform fast, iterative, contiguity-preserving optimization
   of many of the compactness objective functions found in the gerrymandering literature.
 
-This includes:
+The implemented algorithms include:
 * Isoperimeter Quotient: e.g., [Polsby & Popper](https://digitalcommons.law.yale.edu/ylpr/vol9/iss2/6)
 * Moments of Inertia: [Weaver & Hess](http://dx.doi.org/10.2307/794769)
 * Largest-Inscribed Circle: [Ehrenburg](https://babel.hathitrust.org/cgi/pt?id=mdp.39015076673584;view=1up;seq=41)
@@ -16,6 +15,12 @@ This includes:
 * Path Fraction ("Bizareness"): [Chambers & Miller](http://dx.doi.org/10.1561/100.00009022)
 * Distance assignment: [Chen & Rodden](http://dx.doi.org/10.1561/100.00012033)
 * Split-line: [Forrest](http://dx.doi.org/10.1177/000276426400800407)
+
+To do this, C4 includes three c++ classes:
+  (1) a universe, (2) a region, and (3) cells.
+In districting parlance, this means states, legislative districts, and Census tracts (or block groups or blocks).
+The Universer class (mainly) is exposed to python through cython.
+All plotting and most data management happens in python.
 
 ## Build Instructions
 
@@ -47,9 +52,11 @@ This means: run Pennsylvania, for up to 100k iterations initialized through the 
 
 This is a little different from most methods, since power diagrams do not use the standard greedy optimizer.  More typical is:
 ```
-./run.py -s pa -m hull_p -t 0.01 -x300 -n10000 -c20 --conv_iter 500  --destrand_min 3 --destrand_max 50 --allow_trades
+./run.py -s pa -m hull_p -t 0.01 -x300 -n10000 --conv_iter 500 -c20  --destrand_min 3 --destrand_max 50 --allow_trades
 ```
-This means use the hull population method.  Run up to 10000 iterations total, and stop after 500 iterations with no improvement.  Do remove "strands" from the regions (larger than 3, but smaller than 50 cells).
+This means use the hull population method.  Run up to 10000 iterations total, and stop after 500 iterations with no improvement.
+Restart the search 20 times.
+Do remove "strands" from the regions (larger than 3, but smaller than 50 cells).
 
 Aternatively, you can just accept my defaults, and do
 ```
