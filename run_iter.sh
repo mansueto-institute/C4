@@ -1,15 +1,14 @@
 #!/bin/bash
 
+echo RUNNING :: $STATE $METHOD $SEED
+
 s=${STATE}
 x=${SEED}
 m=${METHOD}
 
-echo RUNNING :: $x $s $m
-
-C=20
-N=10000
-shading="none"
-# shading="target district"
+C="${CYCLES:=20}"
+N="${ITERATIONS:=10000}"
+shading="${SHADING:=none}"
 
 # POWER DIST RADII IPQ CIRCLES HULL_P HULL_A INERTIA AXIS SPLIT PATH_FRAC
 
