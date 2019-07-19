@@ -7,10 +7,9 @@ RUN apt-get install -y python3 python3-pip python3-dev build-essential
 RUN apt-get install -y libgeos-dev libgdal-dev
 RUN apt-get install -y python3-gdal gdal-bin
 
-RUN pip3 install cython matplotlib fiona pysal geopandas psycopg2
+RUN pip3 install cython==0.28.5 matplotlib==2.2.2 fiona==1.8.0 pysal==1.14.4 geopandas==0.4.0 psycopg2==2.6.2 pandas==0.23.4 scipy==1.1.0 pyproj==1.9.5.1 descartes
 
-# https://github.com/settings/tokens/
-RUN mkdir C4 && cd C4 && git init && git pull https://MY_PERSONAL_TOKEN@github.com/JamesSaxon/C4.git && python3 setup.py build_ext --inplace
+RUN git clone https://github.com/JamesSaxon/C4.git && cd C4 && python3 setup.py build_ext --inplace
 
 RUN touch ~/.netrc
 
@@ -24,3 +23,4 @@ CMD cd C4 && \
     zip -r $(printf "%s_s%03d%s.zip" $STATE $SEED $([ "$METHOD" != "" ] && echo _$METHOD)) \
            ${STATE}-${SEED}-${METHOD}.out res/ && \
     s3cmd put *zip s3://jsaxon-test-bucket/
+
