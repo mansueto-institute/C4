@@ -42,7 +42,7 @@ This means:
 * Run interactively and allow input (`-it`).
 
 Of course, you can also run interactively with `/bin/bash` and just `cd` to `C4` to use `run.py` with all of its arguments.
-(If so, skip to [Running C4](#running-c4), below.)
+In that case, skip to [Running C4](#running-c4), below.
 
 For large-scale jobs, I run C4 as a Docker container on AWS.
 The Dockerfile changes very slightly, with AWS keys and `s3` tools (see [DockerfileAWS](DockerfileAWS)).
@@ -67,7 +67,7 @@ However, Anaconda has made it much easier.  On relatively modern (few year-old) 
   
 Then to build **C4**, it's just `python setup.py build_ext --inplace`.
 
-## Running C4
+### Running C4
 
 Setting up all of the shapefiles, topologies, and voting records from scratch is pretty involved, but these are all included in the package.  To run C4, I suggest checking out `run.py` which will show you its options (`-h`), or `run_iter.sh` where you can find the default settings for any of the methods.
 
