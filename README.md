@@ -93,11 +93,12 @@ which will run Pennsylvania for seed 300 with the Isoperimeter quotient method.
 
 ## Outputs
 
-Three types of files will be written to `res/` (your local directory).
+Four types of files will be written to `res/` (your local directory).
 Note again that, running with docker, the directory must be mounted to a local file.
 1. JSON files containing a summary of the simulation will be written to `res/json/[state usps]_[method]_s[seed]_c[cycle].json`.  These files contain a summary of the entire run: the tract to district assignment, the spatial parameters of the districts, the partisan voting (if available for that state), race and ethnicity, voter balance (`PopulationDeviation`), the method used, and so forth (run `jq keys file.json` to see this).  These data 
 2. CSV files containing simply the tract to district assignment.   This is just a two-column assignment: row number (equivalent to county + tract geoid, though perhaps a poor technical choice) and the district.  This will be written to `res/[state usps]/[method]/s[seed]/c[cycle]/final.csv`. 
-3. Within that directory, you will also `final_*.pdf`, which are maps of the outcome.  There will be one map for each shading method used.
+3. GeoJSON files of the districting plans, `final.geojson`, in the same directory as (2).  These contain the basic plan and some of the information of (1).  They are in in the EPSG 4326 coordinate reference system, and display nicely on GitHub or Gist or in Leaflet etc.
+4. Finally, `final_*.pdf` are static maps of the districting plans.  There will be one map for each shading method used.
 
 
 ## Browsing Maps:
