@@ -19,7 +19,7 @@ The implemented algorithms include:
 To do this, C4 includes three c++ classes:
   (1) a universe, (2) a region, and (3) cells.
 In districting parlance, this means states, legislative districts, and Census tracts (or block groups or blocks).
-The Universer class (mainly) is exposed to python through cython.
+The Universe class (mainly) is exposed to python through cython.
 All plotting and most data management happens in python.
 
 ## Running C4 as a Docker Container (Simple!)
@@ -35,9 +35,9 @@ docker run -v $(pwd)/res/:/C4/res/ -e STATE=pa -e SEED=2 -e METHOD=POWER --rm -i
 This means:
 * Run the c4 software as in this image (`docker run [...] jamessaxon/c4:replication`)
 * Mount the local directory called `res/` to `/C4/res/` in the container.  Results written here will be available when the jobs completes. You **must make the `res/` directory!!**
-* Environment variables / arguments: simulate districts for the `STATE` of Pennsylvania (USPS code `pa`), with `SEED` of 2 (any number, but < 1000 will format better), using the `POWER` diagram `METHOD`.  You can also specify the `SHADING` (`-e SHADING=all`).
+* Environment variables / arguments: simulate districts for the `STATE` of Pennsylvania (USPS code `pa`), with `SEED` of 2 (any number, but < 1000 will format better), using the `POWER` diagram `METHOD`.  You can also specify which maps to draw with the `SHADING` variable (`-e SHADING=all` is _all_ of them).
    * The possible methods are `POWER DIST RADII IPQ CIRCLES HULL_P HULL_A INERTIA AXIS SPLIT PATH_FRAC`.  Several of these run several methods in sequence.  For instance `CIRCLES` runs the `exchange`, `reock` and `ehrenburg` methods, and `RADII` includes `rohrbach`, `harm_radius`, `mean_radius`, and `dyn_radius `.
-   * The SHADING options are: district (just colors), target (ratio to target population), density (show population centers), scores (show spatial scores), counties (overlay county geometries), and "all" or "none".  The default is none.
+   * The SHADING options are: `district` (just colors), `target` (ratio to target population), `density` (show population centers), `scores` (show spatial scores), `counties` (overlay county geometries), and `all` or `none`.  The default is `none`.
 * Remove (`--rm`) the container when it exits.
 * Run interactively and allow input (`-it`).
 
