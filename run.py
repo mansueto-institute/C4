@@ -209,8 +209,9 @@ def main(state, seed, method, seats, ncycles, split_restart, power_restart, nite
       for s in shading:
 
         # Score
-        scores = [1] * u.nregions
-        if method in pyc4_methods: scores = u.get_objectives(pyc4_methods[method])
+        if method in pyc4_methods:
+            scores = u.get_objectives(pyc4_methods[method])
+        else: continue
 
         plot_map(gdf, "{}/{}/{}_{}.pdf".format(output, write_cycle, tag, s),
                  label = pyc4_formal[method] if i else init.capitalize(),
