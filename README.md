@@ -85,11 +85,14 @@ This means use the hull population method.  Run up to 10000 iterations total, an
 Restart the search 20 times.
 Do remove "strands" from the regions (larger than 3, but smaller than 50 cells).
 
-Aternatively, you can just accept my defaults, and do
+Alternatively, you can just accept my defaults, and do
 ```
 export STATE=pa; export SEED=300; export METHOD=IPQ; ./run_iter.sh
 ```
 which will run Pennsylvania for seed 300 with the Isoperimeter quotient method.
+This is the default script that the Docker container runs.
+The possible methods are: `POWER`, `DIST`, `RADII`, `IPQ`, `CIRCLES`, `HULL_P`, `HULL_A`, `INERTIA`, `AXIS SPLIT`, `PATH_FRAC`.
+Several of these run multiple methods in series.
 
 ## Outputs
 
