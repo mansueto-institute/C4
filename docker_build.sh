@@ -1,7 +1,7 @@
 
 # Update the Git and AWS strings in the Dockerfile!!
 
-docker build --no-cache -t c4 -f Dockerfile
+docker build --no-cache -t c4 -f DockerfileAWS
 
 # docker run --rm -e STATE=va -e SEED=300 -e METHOD=POWER c4
 
