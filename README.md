@@ -25,8 +25,8 @@ All plotting and most data management happens in python.
 ## Running C4 as a Docker Container (Simple!)
 
 To facilitate use and replication, all of the dependences and the built software are included in a docker container,
-  hosted on [DockerHub](https://cloud.docker.com/repository/docker/jamessaxon/c4).
-The container is about 2GB.
+  hosted on [DockerHub](https://hub.docker.com/r/jamessaxon/c4).
+The container was generated using the included [Dockerfile](Dockerfile) and is about 2 GB.
 Running from scratch is as simple as:
 ```
 docker run -v $(pwd)/res/:/C4/res/ -e STATE=pa -e SEED=2 -e METHOD=POWER --rm -it  jamessaxon/c4:replication
