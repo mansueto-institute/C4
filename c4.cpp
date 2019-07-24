@@ -696,7 +696,7 @@ namespace c4 {
 
 
     // Sanity check.
-    uint count_ib = 0;
+    unsigned int count_ib = 0;
     for (auto c : cells) {
 
       bool border = false;
