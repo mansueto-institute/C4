@@ -19,14 +19,14 @@ The implemented algorithms include:
 To do this, C4 includes three c++ classes:
   (1) a universe, (2) a region, and (3) cells.
 In districting parlance, this means states, legislative districts, and Census tracts (or block groups or blocks).
-The Universer class (mainly) is exposed to python through cython.
+The Universe class (mainly) is exposed to python through cython.
 All plotting and most data management happens in python.
 
 ## Running C4 as a Docker Container (Simple!)
 
 To facilitate use and replication, all of the dependences and the built software are included in a docker container,
-  hosted on [DockerHub](https://cloud.docker.com/repository/docker/jamessaxon/c4).
-The container is about 2GB.
+  hosted on [DockerHub](https://hub.docker.com/r/jamessaxon/c4).
+The container was generated using the included [Dockerfile](Dockerfile) and is about 2 GB.
 Running from scratch is as simple as:
 ```
 docker run -v $(pwd)/res/:/C4/res/ -e STATE=pa -e SEED=2 -e METHOD=POWER --rm -it  jamessaxon/c4:replication
@@ -34,10 +34,10 @@ docker run -v $(pwd)/res/:/C4/res/ -e STATE=pa -e SEED=2 -e METHOD=POWER --rm -i
 
 This means:
 * Run the c4 software as in this image (`docker run [...] jamessaxon/c4:replication`)
-* Mount the local directory called `res/` to `/C4/res/` in the container.  Results written here will be available when the jobs complets. You should *make the `res/` directory!!*
-* Environment variables / arguments: simulate districts for the `STATE` of Pennsylvania (USPS code `pa`), with `SEED` of 2 (any number, but < 1000 will format better), using the `POWER` diagram `METHOD`.  You can also 
+* Mount the local directory called `res/` to `/C4/res/` in the container.  Results written here will be available when the jobs completes. You **must make the `res/` directory!!**
+* Environment variables / arguments: simulate districts for the `STATE` of Pennsylvania (USPS code `pa`), with `SEED` of 2 (any number, but < 1000 will format better), using the `POWER` diagram `METHOD`.  You can also specify which maps to draw with the `SHADING` variable (`-e SHADING=all` is _all_ of them).
    * The possible methods are `POWER DIST RADII IPQ CIRCLES HULL_P HULL_A INERTIA AXIS SPLIT PATH_FRAC`.  Several of these run several methods in sequence.  For instance `CIRCLES` runs the `exchange`, `reock` and `ehrenburg` methods, and `RADII` includes `rohrbach`, `harm_radius`, `mean_radius`, and `dyn_radius `.
-   * The SHADING options are: district (just colors), target (ratio to target population), density (show population centers), scores (show spatial scores), counties (overlay county geometries), and "all" or "none".  The default is none.
+   * The SHADING options are: `district` (just colors), `target` (ratio to target population), `density` (show population centers), `scores` (show spatial scores), `counties` (overlay county geometries), and `all` or `none`.  The default is `none`.
 * Remove (`--rm`) the container when it exits.
 * Run interactively and allow input (`-it`).
 
@@ -85,19 +85,23 @@ This means use the hull population method.  Run up to 10000 iterations total, an
 Restart the search 20 times.
 Do remove "strands" from the regions (larger than 3, but smaller than 50 cells).
 
-Aternatively, you can just accept my defaults, and do
+Alternatively, you can just accept my defaults, and do
 ```
 export STATE=pa; export SEED=300; export METHOD=IPQ; ./run_iter.sh
 ```
 which will run Pennsylvania for seed 300 with the Isoperimeter quotient method.
+This is the default script that the Docker container runs.
+The possible methods are: `POWER`, `DIST`, `RADII`, `IPQ`, `CIRCLES`, `HULL_P`, `HULL_A`, `INERTIA`, `AXIS`, `SPLIT`, `PATH_FRAC`.
+Several of these options run multiple methods in series.
 
 ## Outputs
 
-Three types of files will be written to `res/` (your local directory).
+Four types of files will be written to `res/` (your local directory).
 Note again that, running with docker, the directory must be mounted to a local file.
 1. JSON files containing a summary of the simulation will be written to `res/json/[state usps]_[method]_s[seed]_c[cycle].json`.  These files contain a summary of the entire run: the tract to district assignment, the spatial parameters of the districts, the partisan voting (if available for that state), race and ethnicity, voter balance (`PopulationDeviation`), the method used, and so forth (run `jq keys file.json` to see this).  These data 
 2. CSV files containing simply the tract to district assignment.   This is just a two-column assignment: row number (equivalent to county + tract geoid, though perhaps a poor technical choice) and the district.  This will be written to `res/[state usps]/[method]/s[seed]/c[cycle]/final.csv`. 
-3. Within that directory, you will also `final_*.pdf`, which are maps of the outcome.  There will be one map for each shading method used.
+3. GeoJSON files of the districting plans, `final.geojson`, in the same directory as (2).  These contain the basic plan and some of the information of (1).  They are in in the EPSG 4326 coordinate reference system, and display nicely on GitHub or Gist or in Leaflet etc.
+4. Finally, `final_*.pdf` are static maps of the districting plans.  There will be one map for each shading method used.
 
 
 ## Browsing Maps:
