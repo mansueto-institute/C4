@@ -67,12 +67,12 @@ conda create -n c4test python=3.6 geopandas pysal=1.14.4 cython
 ```
 should give you everything you need.
 
-But if you are missing something, these are the packages that are necessary:
+But if you are missing something, these are required packages:
 * Compiled: `libboost-all-dev` `libgeos-dev`, `libgdal-dev`, `python3-gdal`, `gdal-bin`
 * Python: `cython`, `matplotlib`, `fiona`, `pysal`, `geopandas`, `psycopg2`
-Anaconda notwithstanding, GEOS and GDAL installs can be finnicky.  So this part of the installation is on the user.  
-  
-Then, to build **C4**, it's just
+Anaconda notwithstanding, GEOS and GDAL installs can be finnicky.  So this part of the installation is on _you_, gentle user!
+
+Finally, to build **C4**, it's just
 ```
 python setup.py build_ext --inplace
 ```
