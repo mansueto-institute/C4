@@ -70,6 +70,7 @@ should give you everything you need.
 But if you are missing something, these are required packages:
 * Compiled: `libboost-all-dev` `libgeos-dev`, `libgdal-dev`, `python3-gdal`, `gdal-bin`
 * Python: `cython`, `matplotlib`, `fiona`, `pysal`, `geopandas`, `psycopg2`
+
 Anaconda notwithstanding, GEOS and GDAL installs can be finnicky.  So this part of the installation is on _you_, gentle user!
 
 Finally, to build **C4**, it's just
