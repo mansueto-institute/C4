@@ -53,7 +53,7 @@ The scripts for [building the container](docker_build.sh) and [launching jobs](a
 
 ### Building
 
-Some components require Armadillo, which in turn requires OpenBlas:
+Some components require Armadillo, which in turn requires OpenBlas.  Note that if you create a python environment with geopandas, OpenBLAS will come for free.  So you may not need to to do this.
 * OpenBLAS: First [download](https://github.com/xianyi/OpenBLAS/zipball/master) it, then `make && sudo make install`.  (Yes, it's that easy!)
 * Armadillo:
   * Linux: `sudo apt-get install libarmadillo-dev libarmadillo6 libarmadillo6-dbgsym`
