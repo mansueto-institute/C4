@@ -1,8 +1,12 @@
 ## Algorithm Design
 
+The software is composed of three c++ classes,
+  exposed to python through cython.
+
 ### Classes
 
 #### Universe
+
 #### Region
 #### Cells
 
@@ -14,9 +18,12 @@
 ### Optimization Routines
 
 #### Greedy Optimizer
+#### Split-Restart
 #### Power 
 #### Split-Line
 
 ### Objective Functions
 
-#### Add/Remove
+### `run.py`
+
+### Cython Wrapping
