@@ -44,11 +44,30 @@ The three regionalization functions are
   `oiterate()`, `iterate_power()`, and `split_line_init()`.
 
 #### Region
+
+Region is used mainly to evaluate objective functions.
+It saves at all times its area, its various centroids (population or area-weighted), etc.
+This entails keeping track of cells along its border -- both internal and external.
+It also has a number of convenience functions for distances,
+  and can run contiguity checks.
+
 #### Cells
+
+Cells are where a lot of magic lives.
+Cells [know](https://github.com/JamesSaxon/C4/blob/master/c4.h#L203)
+  their region, their ID, their population and location and -- 
+  most important all of their neighbors (to which they have pointers).
+If cells are the cut vertex to a portion of the graph,
+  that portion will be removed and the cell will record
+  a listing of the cells from "beyond the cut."
 
 ### Contiguity Constraints
 
+Contiguity constrains are enforced using integer programming.
+
+
 #### Connecting the Graph
+
 #### Preserving Region Connectivity
 
 ### Optimization Routines
@@ -67,7 +86,7 @@ Each of these
 * `obj_inertia_a/p`: Areal or population moment of inertia.  Changes are calculated using the parallel axis theorem.
 * `obj_reock`: AKA smallest circumscribing circle (SCC) method.  This is calculated using Bernd Gärtner's incredible Miniball algorithm.  But there is a copy here, to line things up, so it's still not super fast.  The SCC is only recalculated if a cell to be removed is on the boundary or a cell to be added is beyond its radius.
 * `obj_hull/_p`: Hulls and population hulls are recalculated using Boost, but only if the new cell would affect the border.
-* `obj_polsby`: Polsby is calculated
+* `obj_polsby`: Polsby is calculated by tracking exactly which parts of each cell's perimeter are shared with its neighbors.  Every move of a cell moves some parts of a boundary into the shape, and exposes other parts of the moved cell.  This is done efficiently by tracking the internal and external neighbors of a region at all times.  Cells also have pointers to their neighbors and know the perimeter they share with them.
 * `obj_polsby_w` Similar algorithm, but with perimeters weighted along regimes.
 * `obj_path_frac`: This is the fraction of shortest paths between two residents of a district that are contained in the district itself.  This is calculated by caching the Dijkstra shortest paths for the entire state, before running.  To efficiently save all of the paths, I just record first step of each path, since _the next cell_ can tell you where to go from there.)  This is still very slow.  Note that other, apparently closely related algorithms, like any involving the shortest paths between points on perimeters are entirely infeasible.  Doing so requires calculating the entire visibility graph for each region from scratch for every change, instead of caching it at the beginning.
 * `obj_ehrenburg`: AKA Largest Inscribed Circle (LIC).  This is entirely my own algorithm, and I quite like it.  First, create a polygon from the nodes of the external "ring" of the region (`get_node_ring()` -- itself, very complicated). Then run Boost's polygon Voronoi method to get the Voronoi diagram (and its points).  Then the LIC is the circle whose center is the node of the Voronoi diagram that is (a) within the ring of the region and (b) furthest from its source points (it must be equidistant from all of the source points -- that's what a Voronoi diagram _is_).
