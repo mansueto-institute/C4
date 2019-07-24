@@ -53,19 +53,30 @@ The scripts for [building the container](docker_build.sh) and [launching jobs](a
 
 ### Building
 
-Some components require Armadillo, which in turn requires OpenBlas:
+Some components require Armadillo, which in turn requires OpenBlas.  Note that if you create a python environment with geopandas, OpenBLAS will come for free.  So you may not need to to do this.
 * OpenBLAS: First [download](https://github.com/xianyi/OpenBLAS/zipball/master) it, then `make && sudo make install`.  (Yes, it's that easy!)
 * Armadillo:
   * Linux: `sudo apt-get install libarmadillo-dev libarmadillo6 libarmadillo6-dbgsym`
   * Mac [download](http://arma.sourceforge.net/download.html) then `cmake . && make && sudo make install`
   
-You will also need all of the compiled and python packages listed in the [Dockerfile](Dockerfile):
+You will also need all of the compiled and python packages listed in the [Dockerfile](Dockerfile).
+Anaconda has made this much easier. 
+On relatively modern (few year-old) Macs, 
+```
+conda create -n c4test python=3.6 geopandas pysal=1.14.4 cython 
+```
+should give you everything you need.
+
+But if you are missing something, these are required packages:
 * Compiled: `libboost-all-dev` `libgeos-dev`, `libgdal-dev`, `python3-gdal`, `gdal-bin`
 * Python: `cython`, `matplotlib`, `fiona`, `pysal`, `geopandas`, `psycopg2`
-GEOS and GDAL can be finnicky with respect to the OS, so this installation is on the user.  
-However, Anaconda has made it much easier.  On relatively modern (few year-old) Macs, `conda install geopandas pysal cython psycopg2 libboost` seems to give you everything you need.
-  
-Then to build **C4**, it's just `python setup.py build_ext --inplace`.
+
+Anaconda notwithstanding, GEOS and GDAL installs can be finnicky.  So this part of the installation is on _you_, gentle user!
+
+Finally, to build **C4**, it's just
+```
+python setup.py build_ext --inplace
+```
 
 ### Running C4
 
