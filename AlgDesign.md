@@ -24,6 +24,6 @@ The software is composed of three c++ classes,
 
 ### Objective Functions
 
-### `run.py`
-
 ### Cython Wrapping
+
+### Python Script
