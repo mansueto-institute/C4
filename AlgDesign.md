@@ -65,17 +65,69 @@ If cells are the cut vertex to a portion of the graph,
 
 Contiguity constrains are enforced using integer programming.
 
-
 #### Connecting the Graph
 
+* Function: `Universe::connect_graph()`
+
+The graph is is initially connected with `Universe::connect_graph()`.
+This algorithm starts from a star graph for a single cell.
+It then creates another one.  If the two graphs overlap, combined them.  Continue.
+
+If there are multiple graphs at the end of this procedure, 
+  find the closest cells between two graphs by Euclidean distance.
+Draw an edge between these, and join the graph.
+
+Note that these initially-disconnected pieces are 
+  likely to be removed again (subsumed, really), by `Universe::trim_graph()`,
+  since they cannot be moved without moving the cell to which they are connected.
+But this trimming applies to both disconnected islands
+  and to enclaves -- like small county seats in broad Texas counties.
+
 #### Preserving Region Connectivity
+
+* Key Function: `neighbor_sets()` (called by `neighbors_connected()` and `neighbor_strands()`)
+
+The requirement is this:
+  moving a cell from one region to another 
+  must leave its neighbors from its old regions in connected subgraph.
+Others (Cho and Liu) have enforced this quite simply by requiring that the neighbors themselves be connected,
+  but this only works because they both preclude holes and use Queen weights.
+I perform the broader search, so that the neighbors left behind my be connected by cells that the moving cell did not touch.
+This is done by checking if neighbors are on different subgraphs, with `Cell:neighbor_sets()`.
+This is possibly the most important and most complicated function in the code.
+It is commented thoroughly, but it is NON-TRIVIAL!
 
 ### Optimization Routines
 
 #### Greedy Optimizer
+* Key Function: `Universe::oiterate()` and `Universe::greedy()`.
+`Universe::oiterate()` loops over regions, grabbing the best cell to annex, if such a cell exists.
+It forwards most of its work to `Universe::greedy()` (which also includes GRASP and tabu functionality),
+  which in turn towards `Universe::greedy_evaluate()`.
+This is where the population difference is calculated
+  and where `Region::obj()` is called with cells to add or subtract.
+If a move would result in the (best yet) change in the objective,
+  I check if its neighbors are on separate subgraphs, with `neighbor_strands()`.
+
 #### Split-Restart
+* Code: `Universe::split_restart()`
+Split-Restart is a means of "whacking" the system to start over, without completely starting from scratch.
+The worst-performing district is split in two, and two other random districts are joined together.
+
 #### Power 
+* Code: `Universe::iterate_power()` and `Universe::voronoi_classify()`
+Iterate power slowly changes the effective lambda parameter (`r2_pow`)
+  and the power diagram centers (`x/y_pow`) of the regions.
+It then runs `voronoi_classify()` to set region membership.
+
 #### Split-Line
+* Code: `Universe::split_line_init()`
+This function spins an unit vector in steps of pi / 20,
+  and divides the cells of a region in two (`Universe::split_region()`) 
+  according to their dot product with that vector.
+It chooses the angle that results in the smallest perimeter between the two new regions,
+  and "finalizes" that split.
+This search is very, very slow, but it only runs once per state, so it's OK.
 
 ### Objective Functions
 
