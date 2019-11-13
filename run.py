@@ -63,7 +63,7 @@ def load_data(state, method, seats = None, bgroup = False, scale_regimes = 1, sc
 
   # Regime weight and node assignments, for weighted polsby
   if math.fabs(scale_regimes - 1) > 1e-5 or \
-     math.fabs(scale_regime_perimeters -1 ) > 1e-5:
+     math.fabs(scale_regime_perimeters - 1) > 1e-5:
     u.add_regime("county", gdf.county.to_dict(), 
                  scale_regimes, scale_regime_perimeters)
   
@@ -243,7 +243,7 @@ if __name__ == "__main__":
   parser = argparse.ArgumentParser()
 
   # Initialization 
-  parser.add_argument("-i", "--init",      default = "seed", choices = ["seed", "kmeans", "rand", "split", "power", "csv"], type = str, help = "This specifies the initial solution to begin iterating from.  The default is just to seed a single cell, and allow each algorithm to 'grow for itself.'  Alternately, kmeans will 'fill out the map,' rand will grow randomly but contiguously, split will run the split-line algorith, power runs the power diagram solution, and finally a two-column csv of cells and regions can be specified to start the algorithm at a specific configuration.")
+  parser.add_argument("-i", "--init",      default = "seed", type = str, help = "This specifies the initial solution to begin iterating from.  The default is just to seed a single cell, and allow each algorithm to 'grow for itself.'  Alternately, kmeans will 'fill out the map,' rand will grow randomly but contiguously, split will run the split-line algorith, power runs the power diagram solution, and finally a two-column csv of cells and regions can be specified to start the algorithm at a specific configuration.  Choices are seed, kmeans, rand, split, power, csv.")
   parser.add_argument("-x", "--seed",      default = 0, type = int, help = "What seed?")
   parser.add_argument("-s", "--state",     default = "pa", type=str.lower, choices = us_states, help='Which US state (USPS code)?')
   parser.add_argument("-w", "--write",     default = "", type = str, help = "File to write results to.  Will default to res/ file structure.")

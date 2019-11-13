@@ -1466,8 +1466,10 @@ namespace c4 {
 
       // And shift them all from that population center.
       for (auto& c : cells) {
+        c->area *= scale_regime * scale_regime;
         c->x = regime_pctr_x[c->rm[name]] + scale_regime * (c->x - regime_pctr_x[c->rm[name]]);
         c->y = regime_pctr_y[c->rm[name]] + scale_regime * (c->y - regime_pctr_y[c->rm[name]]);
+        c->pt = bp_pt(c->x, c->y);
       }
     }
 
@@ -2579,19 +2581,34 @@ namespace c4 {
     if (add) amod += add->area;
     if (sub) amod -= sub->area;
 
-    // could be faster to just rebuild.
-    if (sub && !bgeo::within(sub->pt, ch_poly)) {
-      // bg_mpt mpt_diff;
-      bgeo::difference(mpt, sub->pt, mpt_mod);
-      // mpt_mod = mpt_diff;
-    }
+    // // could be faster to just rebuild.
+    // if (sub && !bgeo::within(sub->pt, ch_poly)) {
+    //   // bg_mpt mpt_diff;
+    //   bgeo::difference(mpt, sub->pt, mpt_mod);
+    //   // mpt_mod = mpt_diff;
+    // }
 
-    if (add && !bgeo::within(add->pt, ch_poly)) {
-      bgeo::append(mpt_mod, add->pt);
-    }
+    // if (add && !bgeo::within(add->pt, ch_poly)) {
+    //   bgeo::append(mpt_mod, add->pt);
+    // }
 
-    if (add || sub) {
-      bg_poly ch_poly_mod;
+    // if (add || sub) {
+    //   bg_poly ch_poly_mod;
+    //   bgeo::convex_hull(mpt_mod, ch_poly_mod);
+    //   chamod = bgeo::area(ch_poly_mod);
+    // }
+
+    bg_poly ch_poly_mod;
+    if ((add && !bgeo::within(add->pt, ch_poly)) ||
+        (sub && !bgeo::within(sub->pt, ch_poly))) { 
+
+      // Just rebuild the point collection.
+      bg_mpt mpt_mod; // = mpt;
+      for (auto c : int_borders) {
+        if (c != sub) bgeo::append(mpt_mod, c->pt);
+      }
+      if (add) bgeo::append(mpt_mod, add->pt);
+
       bgeo::convex_hull(mpt_mod, ch_poly_mod);
       chamod = bgeo::area(ch_poly_mod);
     }
