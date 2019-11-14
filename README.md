@@ -22,6 +22,8 @@ In districting parlance, this means states, legislative districts, and Census tr
 The Universe class (mainly) is exposed to python through cython.
 All plotting and most data management happens in python.
 
+See [AlgDesign](AlgDesign.md) for greater detail on the code.
+
 ## Running C4 as a Docker Container (Simple!)
 
 To facilitate use and replication, all of the dependences and the built software are included in a docker container,
